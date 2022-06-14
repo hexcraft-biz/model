@@ -154,8 +154,9 @@ func NewEngine(db *sqlx.DB, tblName string) *Engine {
 func (e *Engine) Insert(ams interface{}) (*ResultSet, error) {
 	fields, placeholders := []string{}, []string{}
 	insertAssignments(ams, &fields, &placeholders)
-
 	q := `INSERT INTO ` + e.TblName + ` (` + strings.Join(fields, ",") + `) VALUES (` + strings.Join(placeholders, ",") + `);`
+	fmt.Println(q)
+	fmt.Println(ams)
 	_, err := e.NamedExec(q, ams)
 	return NewResultSet(ams), err
 }
