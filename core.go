@@ -179,7 +179,7 @@ func insertAssignments(ams interface{}, fields, placeholders *[]string) {
 		} else if ctag := struF.Tag.Get("db"); ctag != "" && ctag != "-" {
 			fmtStr := ""
 			*fields = append(*fields, fmt.Sprintf("%s", ctag))
-			if val.Type().String() == "uuid.UUID" {
+			if strings.Contains(val.Type().String(), "uuid.UUID") {
 				fmtStr = "UUID_TO_BIN(:%s)"
 			} else {
 				fmtStr = ":%s"
