@@ -25,9 +25,9 @@ const (
 //
 //================================================================
 type Prototype struct {
-	ID    *uuid.UUID `db:"id" json:"-"`
-	Ctime *time.Time `db:"ctime" json:"-"`
-	Mtime *time.Time `db:"mtime" json:"-"`
+	ID    *uuid.UUID `db:"id" json:"id"`
+	Ctime *time.Time `db:"ctime" json:"createdAt"`
+	Mtime *time.Time `db:"mtime" json:"modifiedAt"`
 }
 
 func NewPrototype() *Prototype {
