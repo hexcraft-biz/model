@@ -199,6 +199,16 @@ func insertAssignments(ams interface{}, fields, placeholders *[]string) {
 //----------------------------------------------------------------
 // Select
 //----------------------------------------------------------------
+func (e *Engine) Has(uuidStr string) (bool, error) {
+	if _, err := uuid.Parse(uuidStr); err != nil {
+		return false, nil
+	}
+
+	exists := false
+	err := e.Get(&exists, `SELECT EXISTS(SELECT 1 FROM `+e.TblName+` WHERE id = UUID_TO_BIN(?));`, uuidStr)
+	return exists, err
+}
+
 func (e *Engine) GetByID(id string, dst interface{}) (*ResultSet, error) {
 	if u, err := uuid.Parse(id); err != nil {
 		return nil, nil
