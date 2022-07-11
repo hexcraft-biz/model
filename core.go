@@ -148,6 +148,11 @@ type Engine struct {
 	TblName string
 }
 
+type EngineInterface interface {
+	UpdateByID(id string, assignments interface{}) (int64, error)
+	Has(uuidStr string) (bool, error)
+}
+
 func NewEngine(db *sqlx.DB, tblName string) *Engine {
 	return &Engine{
 		DB:      db,
