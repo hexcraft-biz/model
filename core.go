@@ -209,6 +209,32 @@ func insertAssignments(ams interface{}, fields, placeholders *[]string) {
 //----------------------------------------------------------------
 // Select
 //----------------------------------------------------------------
+func (e *Engine) List(dest interface{}, query string, searchCols []string, pg *Pagination) error {
+	var errDB error
+	if pg == nil {
+		pg = NewDefaultPagination()
+	}
+
+	if query == "" {
+		q := `SELECT * FROM ` + e.TblName + pg.ToString() + `;`
+		errDB = e.Select(dest, q)
+	} else if u, err := uuid.Parse(query); err == nil {
+		q := `SELECT * FROM ` + e.TblName + ` WHERE id = UUID_TO_BIN(?);`
+		errDB = e.Select(dest, q, u)
+	} else if len(searchCols) > 0 {
+		args, arg := []interface{}{}, "%"+query+"%"
+		for i := range searchCols {
+			searchCols[i] += " LIKE ?"
+			args = append(args, arg)
+		}
+
+		q := `SELECT * FROM ` + e.TblName + ` WHERE ` + strings.Join(searchCols, " OR ") + pg.ToString() + `;`
+		errDB = e.Select(dest, q, args...)
+	}
+
+	return errDB
+}
+
 func (e *Engine) Has(uuidStr string) (bool, error) {
 	if _, err := uuid.Parse(uuidStr); err != nil {
 		return false, nil
