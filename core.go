@@ -246,21 +246,45 @@ func (e *Engine) Has(uuidStr string) (bool, error) {
 	return exists, err
 }
 
-func (e *Engine) GetByID(id string, dst interface{}) (*ResultSet, error) {
+func (e *Engine) GetByID(dest interface{}, id string) error {
 	if u, err := uuid.Parse(id); err != nil {
-		return nil, nil
+		return nil
 	} else {
 		q := `SELECT * FROM ` + e.TblName + ` WHERE id = UUID_TO_BIN(?);`
-		if err := e.Get(dst, q, u); err != nil {
+		if err := e.Get(dest, q, u); err != nil {
 			if err == sql.ErrNoRows {
-				return nil, nil
+				return nil
 			} else {
-				return nil, err
+				return err
 			}
 		}
 
-		return NewResultSet(dst), nil
+		return nil
 	}
+}
+
+func (e *Engine) GetByKey(key string, dest interface{}) error {
+	if _, err := uuid.Parse(key); err == nil {
+		q := `SELECT * FROM ` + e.TblName + ` WHERE id = UUID_TO_BIN(?);`
+		if err := e.Get(dest, q, key); err != nil {
+			if err == sql.ErrNoRows {
+				return nil
+			} else {
+				return err
+			}
+		}
+	} else {
+		q := `SELECT * FROM ` + e.TblName + ` WHERE identity = ?;`
+		if err := e.Get(dest, q, key); err != nil {
+			if err == sql.ErrNoRows {
+				return nil
+			} else {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 //----------------------------------------------------------------
