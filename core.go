@@ -250,18 +250,10 @@ func (e *Engine) List(dest interface{}, query string, searchCols []string, pg *P
 
 func (e *Engine) GetByID(dest interface{}, id string) error {
 	if u, err := uuid.Parse(id); err != nil {
-		return nil
+		return sql.ErrNoRows
 	} else {
 		q := `SELECT * FROM ` + e.TblName + ` WHERE id = UUID_TO_BIN(?);`
-		if err := e.Get(dest, q, u); err != nil {
-			if err == sql.ErrNoRows {
-				return nil
-			} else {
-				return err
-			}
-		}
-
-		return nil
+		return e.Get(dest, q, u)
 	}
 }
 
@@ -273,16 +265,7 @@ func (e *Engine) GetByKey(dest interface{}, key string) error {
 		q = `SELECT * FROM ` + e.TblName + ` WHERE identity = ?;`
 	}
 
-	if err := e.Get(dest, q, key); err != nil {
-		switch err {
-		case sql.ErrNoRows:
-			return nil
-		default:
-			return err
-		}
-	}
-
-	return nil
+	return e.Get(dest, q, key)
 }
 
 //----------------------------------------------------------------
