@@ -265,24 +265,20 @@ func (e *Engine) GetByID(dest interface{}, id string) error {
 	}
 }
 
-func (e *Engine) GetByKey(key string, dest interface{}) error {
+func (e *Engine) GetByKey(dest interface{}, key string) error {
+	q := ""
 	if _, err := uuid.Parse(key); err == nil {
-		q := `SELECT * FROM ` + e.TblName + ` WHERE id = UUID_TO_BIN(?);`
-		if err := e.Get(dest, q, key); err != nil {
-			if err == sql.ErrNoRows {
-				return nil
-			} else {
-				return err
-			}
-		}
+		q = `SELECT * FROM ` + e.TblName + ` WHERE id = UUID_TO_BIN(?);`
 	} else {
-		q := `SELECT * FROM ` + e.TblName + ` WHERE identity = ?;`
-		if err := e.Get(dest, q, key); err != nil {
-			if err == sql.ErrNoRows {
-				return nil
-			} else {
-				return err
-			}
+		q = `SELECT * FROM ` + e.TblName + ` WHERE identity = ?;`
+	}
+
+	if err := e.Get(dest, q, key); err != nil {
+		switch err {
+		case sql.ErrNoRows:
+			return nil
+		default:
+			return err
 		}
 	}
 
