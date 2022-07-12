@@ -155,6 +155,7 @@ type Engine struct {
 type EngineInterface interface {
 	Insert(ams interface{}) (sql.Result, error)
 	Has(id string) (bool, error)
+	List(dest interface{}, query string, searchCols []string, pg *Pagination) error
 	UpdateByID(id string, assignments interface{}) (int64, error)
 	DeleteByID(id string) (int64, error)
 }
