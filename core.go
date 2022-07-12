@@ -149,8 +149,10 @@ type Engine struct {
 }
 
 type EngineInterface interface {
+	Insert(ams interface{}) (sql.Result, error)
+	Has(id string) (bool, error)
 	UpdateByID(id string, assignments interface{}) (int64, error)
-	Has(uuidStr string) (bool, error)
+	DeleteByID(id string) (int64, error)
 }
 
 func NewEngine(db *sqlx.DB, tblName string) *Engine {
@@ -163,12 +165,11 @@ func NewEngine(db *sqlx.DB, tblName string) *Engine {
 //----------------------------------------------------------------
 // Insert
 //----------------------------------------------------------------
-func (e *Engine) Insert(ams interface{}) (*ResultSet, error) {
+func (e *Engine) Insert(ams interface{}) (sql.Result, error) {
 	fields, placeholders := []string{}, []string{}
 	insertAssignments(ams, &fields, &placeholders)
 	q := `INSERT INTO ` + e.TblName + ` (` + strings.Join(fields, ",") + `) VALUES (` + strings.Join(placeholders, ",") + `);`
-	_, err := e.NamedExec(q, ams)
-	return NewResultSet(ams), err
+	return e.NamedExec(q, ams)
 }
 
 func insertAssignments(ams interface{}, fields, placeholders *[]string) {
