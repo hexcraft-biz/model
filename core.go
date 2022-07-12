@@ -156,6 +156,8 @@ type EngineInterface interface {
 	Insert(ams interface{}) (sql.Result, error)
 	Has(id string) (bool, error)
 	List(dest interface{}, query string, searchCols []string, pg *Pagination) error
+	GetByID(dest interface{}, id string) error
+	GetByKey(dest interface{}, key string) error
 	UpdateByID(id string, assignments interface{}) (int64, error)
 	DeleteByID(id string) (int64, error)
 }
@@ -210,6 +212,16 @@ func insertAssignments(ams interface{}, fields, placeholders *[]string) {
 //----------------------------------------------------------------
 // Select
 //----------------------------------------------------------------
+func (e *Engine) Has(uuidStr string) (bool, error) {
+	if _, err := uuid.Parse(uuidStr); err != nil {
+		return false, nil
+	}
+
+	exists := false
+	err := e.Get(&exists, `SELECT EXISTS(SELECT 1 FROM `+e.TblName+` WHERE id = UUID_TO_BIN(?));`, uuidStr)
+	return exists, err
+}
+
 func (e *Engine) List(dest interface{}, query string, searchCols []string, pg *Pagination) error {
 	var errDB error
 	if pg == nil {
@@ -234,16 +246,6 @@ func (e *Engine) List(dest interface{}, query string, searchCols []string, pg *P
 	}
 
 	return errDB
-}
-
-func (e *Engine) Has(uuidStr string) (bool, error) {
-	if _, err := uuid.Parse(uuidStr); err != nil {
-		return false, nil
-	}
-
-	exists := false
-	err := e.Get(&exists, `SELECT EXISTS(SELECT 1 FROM `+e.TblName+` WHERE id = UUID_TO_BIN(?));`, uuidStr)
-	return exists, err
 }
 
 func (e *Engine) GetByID(dest interface{}, id string) error {
