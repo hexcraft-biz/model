@@ -30,6 +30,10 @@ type Prototype struct {
 	Mtime *time.Time `db:"mtime" json:"modifiedAt"`
 }
 
+type PrototypeInterface interface {
+	Init()
+}
+
 func (p *Prototype) Init() {
 	ts, id := time.Now().UTC().Truncate(time.Second), uuid.New()
 	p.ID = &id
