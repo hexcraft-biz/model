@@ -24,10 +24,19 @@ const (
 //================================================================
 //
 //================================================================
+type PrototypeTime struct {
+	Ctime time.Time `db:"ctime" json:"createdAt"`
+	Mtime time.Time `db:"mtime" json:"modifiedAt"`
+}
+
+func (pt *PrototypeTime) InitTime() {
+	pt.Ctime = time.Now().UTC().Truncate(time.Second)
+	pt.Mtime = pt.Ctime
+}
+
 type Prototype struct {
-	ID    *uuid.UUID `db:"id" json:"id"`
-	Ctime *time.Time `db:"ctime" json:"createdAt"`
-	Mtime *time.Time `db:"mtime" json:"modifiedAt"`
+	ID uuid.UUID `db:"id" json:"id"`
+	PrototypeTime
 }
 
 type PrototypeInterface interface {
@@ -35,18 +44,18 @@ type PrototypeInterface interface {
 }
 
 func (p *Prototype) Init() {
-	ts, id := time.Now().UTC().Truncate(time.Second), uuid.New()
-	p.ID = &id
-	p.Ctime = &ts
-	p.Mtime = &ts
+	p.ID = uuid.New()
+	p.InitTime()
 }
 
 func NewPrototype() *Prototype {
-	ts, id := time.Now().UTC().Truncate(time.Second), uuid.New()
+	ts := time.Now().UTC().Truncate(time.Second)
 	return &Prototype{
-		ID:    &id,
-		Ctime: &ts,
-		Mtime: &ts,
+		ID: uuid.New(),
+		PrototypeTime: PrototypeTime{
+			Ctime: ts,
+			Mtime: ts,
+		},
 	}
 }
 
