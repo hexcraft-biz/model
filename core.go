@@ -34,9 +34,13 @@ func (pt *PrototypeTime) InitTime() {
 	pt.Mtime = pt.Ctime
 }
 
+//================================================================
+//
+//================================================================
 type Prototype struct {
-	ID uuid.UUID `db:"id" json:"id"`
-	PrototypeTime
+	ID    *uuid.UUID `db:"id" json:"id"`
+	Ctime *time.Time `db:"ctime" json:"createdAt"`
+	Mtime *time.Time `db:"mtime" json:"modifiedAt"`
 }
 
 type PrototypeInterface interface {
@@ -44,18 +48,21 @@ type PrototypeInterface interface {
 }
 
 func (p *Prototype) Init() {
-	p.ID = uuid.New()
-	p.InitTime()
+	id := uuid.New()
+	ctime := time.Now().UTC().Truncate(time.Second)
+	mtime := ctime
+
+	p.ID, p.Ctime, p.Mtime = &id, &ctime, &mtime
 }
 
 func NewPrototype() *Prototype {
-	ts := time.Now().UTC().Truncate(time.Second)
+	id := uuid.New()
+	ctime := time.Now().UTC().Truncate(time.Second)
+	mtime := ctime
 	return &Prototype{
-		ID: uuid.New(),
-		PrototypeTime: PrototypeTime{
-			Ctime: ts,
-			Mtime: ts,
-		},
+		ID:    &id,
+		Ctime: &ctime,
+		Mtime: &mtime,
 	}
 }
 
