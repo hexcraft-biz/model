@@ -19,6 +19,9 @@ const (
 	DefaultLength = 20
 	MinLength     = 1
 	MaxLength     = 100
+
+	MysqlErrCodeConflict                  = 1062
+	MysqlErrCodeForeignKeyConstraintFails = 1452
 )
 
 //================================================================
