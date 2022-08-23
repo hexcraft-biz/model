@@ -22,6 +22,9 @@ const (
 
 	MysqlErrCodeConflict                  = 1062
 	MysqlErrCodeForeignKeyConstraintFails = 1452
+
+	MysqlIntMax  = 2147483647
+	MysqlUintMax = 4294967295
 )
 
 //================================================================
