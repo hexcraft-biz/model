@@ -20,8 +20,9 @@ const (
 	MinLength     = 1
 	MaxLength     = 100
 
-	MysqlErrCodeConflict                  = 1062
-	MysqlErrCodeForeignKeyConstraintFails = 1452
+	MysqlErrCodeConflict                        = 1062
+	MysqlErrCodeForeignKeyConstraintFailsCreate = 1452
+	MysqlErrCodeForeignKeyConstraintFailsDelete = 1451
 
 	MysqlIntMax  = 2147483647
 	MysqlUintMax = 4294967295
