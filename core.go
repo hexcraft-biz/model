@@ -182,8 +182,10 @@ type EngineInterface interface {
 	List(dest interface{}, query string, searchCols []string, pg *Pagination) error
 	GetByID(dest, id interface{}) error
 	GetByKey(dest interface{}, key string) error
-	UpdateByID(id, assignments interface{}) (int64, error)
+	GetByUuidPrimaryKeys(dest, ids interface{}) error
+	UpdateByUuuidPrimaryKeys(ids map[string]interface{}, assignments interface{}) (int64, error)
 	DeleteByID(id interface{}) (int64, error)
+	DeleteByUuidPrimaryKeys(ids map[string]interface{}) (int64, error)
 }
 
 func NewEngine(db *sqlx.DB, tblName string) *Engine {
@@ -284,46 +286,61 @@ func (e *Engine) GetByKey(dest interface{}, key string) error {
 	return e.Get(dest, q, key)
 }
 
+func (e *Engine) GetByUuidPrimaryKeys(dest, ids interface{}) error {
+	conditions := strings.Join(*(genQueryFromArguments(ids, nil)), " AND ")
+	q := `SELECT * FROM ` + e.TblName + ` WHERE ` + conditions + `;`
+	if rows, err := e.NamedQuery(q, ids); err != nil {
+		return err
+	} else {
+		return rows.StructScan(dest)
+	}
+}
+
 //----------------------------------------------------------------
 // Update
+//	TODO: UPDATE table SET col = 'bb' WHERE col = 'aa';
 //----------------------------------------------------------------
-func (e *Engine) UpdateByID(id, assignments interface{}) (int64, error) {
-	assigns, args := UpdateAssignments(assignments)
-	args = append(args, id)
-	q := `UPDATE ` + e.TblName + ` SET ` + assigns + ` WHERE id = UUID_TO_BIN(?);`
-	if result, err := e.Exec(q, args...); err != nil {
+func (e *Engine) UpdateByUuuidPrimaryKeys(ids, assignments interface{}) (int64, error) {
+	args := map[string]interface{}{}
+	assigns := strings.Join(*(genQueryFromArguments(assignments, &args)), ", ")
+	conditions := strings.Join(*(genQueryFromArguments(ids, &args)), " AND ")
+	q := `UPDATE ` + e.TblName + ` SET ` + assigns + ` WHERE ` + conditions + `;`
+	if result, err := e.NamedExec(q, args); err != nil {
 		return 0, err
 	} else {
 		return result.RowsAffected()
 	}
 }
 
-func UpdateAssignments(ams interface{}) (string, []interface{}) {
-	assigns, args, v := []string{}, []interface{}{}, reflect.ValueOf(ams)
+func genQueryFromArguments(sour interface{}, args *map[string]interface{}) *[]string {
+	assigns, v := []string{}, reflect.ValueOf(sour)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
 	}
 
-	for i := 0; i < v.NumField(); i += 1 {
+	length := v.NumField()
+	for i := 0; i < length; i += 1 {
 		val, struF := v.Field(i), v.Type().Field(i)
-		ctag := struF.Tag.Get(TagDB)
-		if isUpdatedAssignment(val, ctag) {
+		dbCol := struF.Tag.Get(TagDB)
+		if isValidAssignment(val, dbCol) {
+			if args != nil {
+				(*args)[dbCol] = val
+			}
 			fmtStr := ""
 			if strings.Contains(struF.Type.String(), "uuid.UUID") {
-				fmtStr = "%s = UUID_TO_BIN(?)"
+				fmtStr = "%s = UUID_TO_BIN(:%s)"
 			} else {
-				fmtStr = "%s = ?"
+				fmtStr = "%s = :%s"
 			}
-			assigns = append(assigns, fmt.Sprintf(fmtStr, ctag))
-			args = append(args, val.Interface())
+			assigns = append(assigns, fmt.Sprintf(fmtStr, dbCol, dbCol))
 		}
 	}
 
-	return strings.Join(assigns, ","), args
+	return &assigns
 }
 
-func isUpdatedAssignment(v reflect.Value, ctag string) bool {
-	if ctag == "" || ctag == "-" {
+func isValidAssignment(v reflect.Value, dbCol string) bool {
+	if dbCol == "" || dbCol == "-" {
 		return false
 	} else if v.Kind() != reflect.Ptr {
 		return true
@@ -339,6 +356,16 @@ func isUpdatedAssignment(v reflect.Value, ctag string) bool {
 func (e *Engine) DeleteByID(id interface{}) (int64, error) {
 	q := `DELETE FROM ` + e.TblName + ` WHERE id = UUID_TO_BIN(:id);`
 	if result, err := e.NamedExec(q, map[string]interface{}{"id": id}); err != nil {
+		return 0, err
+	} else {
+		return result.RowsAffected()
+	}
+}
+
+func (e *Engine) DeleteByUuidPrimaryKeys(ids interface{}) (int64, error) {
+	conditions := strings.Join(*(genQueryFromArguments(ids, nil)), " AND ")
+	q := `DELETE FROM ` + e.TblName + ` WHERE ` + conditions + `;`
+	if result, err := e.NamedExec(q, ids); err != nil {
 		return 0, err
 	} else {
 		return result.RowsAffected()
