@@ -183,9 +183,9 @@ type EngineInterface interface {
 	GetByID(dest, id interface{}) error
 	GetByKey(dest interface{}, key string) error
 	GetByPrimaryKeys(dest, ids interface{}) error
-	UpdateByPrimaryKeys(ids map[string]interface{}, assignments interface{}) (int64, error)
+	UpdateByPrimaryKeys(ids, assignments interface{}) (int64, error)
 	DeleteByID(id interface{}) (int64, error)
-	DeleteByPrimaryKeys(ids map[string]interface{}) (int64, error)
+	DeleteByPrimaryKeys(ids interface{}) (int64, error)
 }
 
 func NewEngine(db *sqlx.DB, tblName string) *Engine {
