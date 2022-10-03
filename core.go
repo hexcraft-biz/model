@@ -179,7 +179,7 @@ type Engine struct {
 type EngineInterface interface {
 	Insert(ams interface{}) (sql.Result, error)
 	Has(id interface{}) (bool, error)
-	List(dest interface{}, query string, searchCols []string, pg *Pagination) error
+	List(dest, ids interface{}, orderby, query string, searchCols []string, pg *Pagination) error
 	GetByID(dest, id interface{}) error
 	GetByKey(dest interface{}, key string) error
 	GetByUuidPrimaryKeys(dest, ids interface{}) error
@@ -245,30 +245,34 @@ func (e *Engine) Has(id interface{}) (bool, error) {
 	return flag, err
 }
 
-func (e *Engine) List(dest interface{}, query string, searchCols []string, pg *Pagination) error {
-	var errDB error
+func (e *Engine) List(dest, ids interface{}, orderby, query string, searchCols []string, pg *Pagination) error {
+	args := map[string]interface{}{}
 	if pg == nil {
 		pg = NewDefaultPagination()
 	}
 
-	if query == "" {
-		q := `SELECT * FROM ` + e.TblName + pg.ToString() + `;`
-		errDB = e.Select(dest, q)
-	} else if u, err := uuid.Parse(query); err == nil {
-		q := `SELECT * FROM ` + e.TblName + ` WHERE id = UUID_TO_BIN(?);`
-		errDB = e.Select(dest, q, u)
-	} else if len(searchCols) > 0 {
-		args, arg := []interface{}{}, "%"+query+"%"
+	queryConditions := ""
+	if query != "" && len(searchCols) > 0 {
+		args["q"] = "%" + query + "%"
 		for i := range searchCols {
-			searchCols[i] += " LIKE ?"
-			args = append(args, arg)
+			searchCols[i] += " LIKE :query"
 		}
-
-		q := `SELECT * FROM ` + e.TblName + ` WHERE ` + strings.Join(searchCols, " OR ") + pg.ToString() + `;`
-		errDB = e.Select(dest, q, args...)
+		queryConditions = strings.Join(searchCols, " OR ")
 	}
 
-	return errDB
+	q := ""
+	if ids != nil && !reflect.ValueOf(ids).IsNil() {
+		conditions := strings.Join(*(genQueryFromArguments(ids, &args)), " AND ")
+		q = `SELECT * FROM ` + e.TblName + ` WHERE ` + conditions + ` AND (` + queryConditions + `) ` + orderby + pg.ToString() + `;`
+	} else {
+		q = `SELECT * FROM ` + e.TblName + ` WHERE ` + queryConditions + ` ` + orderby + pg.ToString() + `;`
+	}
+
+	if rows, err := e.NamedQuery(q, args); err != nil {
+		return err
+	} else {
+		return rows.StructScan(dest)
+	}
 }
 
 func (e *Engine) GetByID(dest, id interface{}) error {
