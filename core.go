@@ -178,12 +178,12 @@ type Engine struct {
 
 type EngineInterface interface {
 	Insert(ams interface{}) (sql.Result, error)
-	Has(id string) (bool, error)
+	Has(id interface{}) (bool, error)
 	List(dest interface{}, query string, searchCols []string, pg *Pagination) error
-	GetByID(dest interface{}, id string) error
+	GetByID(dest, id interface{}) error
 	GetByKey(dest interface{}, key string) error
-	UpdateByID(id string, assignments interface{}) (int64, error)
-	DeleteByID(id string) (int64, error)
+	UpdateByID(id, assignments interface{}) (int64, error)
+	DeleteByID(id interface{}) (int64, error)
 }
 
 func NewEngine(db *sqlx.DB, tblName string) *Engine {
@@ -236,14 +236,10 @@ func insertAssignments(ams interface{}, fields, placeholders *[]string) {
 //----------------------------------------------------------------
 // Select
 //----------------------------------------------------------------
-func (e *Engine) Has(uuidStr string) (bool, error) {
-	if _, err := uuid.Parse(uuidStr); err != nil {
-		return false, nil
-	}
-
-	exists := false
-	err := e.Get(&exists, `SELECT EXISTS(SELECT 1 FROM `+e.TblName+` WHERE id = UUID_TO_BIN(?));`, uuidStr)
-	return exists, err
+func (e *Engine) Has(id interface{}) (bool, error) {
+	flag := false
+	err := e.Get(&flag, `SELECT EXISTS(SELECT 1 FROM `+e.TblName+` WHERE id = UUID_TO_BIN(?));`, id)
+	return flag, err
 }
 
 func (e *Engine) List(dest interface{}, query string, searchCols []string, pg *Pagination) error {
@@ -272,13 +268,9 @@ func (e *Engine) List(dest interface{}, query string, searchCols []string, pg *P
 	return errDB
 }
 
-func (e *Engine) GetByID(dest interface{}, id string) error {
-	if u, err := uuid.Parse(id); err != nil {
-		return sql.ErrNoRows
-	} else {
-		q := `SELECT * FROM ` + e.TblName + ` WHERE id = UUID_TO_BIN(?);`
-		return e.Get(dest, q, u)
-	}
+func (e *Engine) GetByID(dest, id interface{}) error {
+	q := `SELECT * FROM ` + e.TblName + ` WHERE id = UUID_TO_BIN(?);`
+	return e.Get(dest, q, id)
 }
 
 func (e *Engine) GetByKey(dest interface{}, key string) error {
@@ -295,18 +287,14 @@ func (e *Engine) GetByKey(dest interface{}, key string) error {
 //----------------------------------------------------------------
 // Update
 //----------------------------------------------------------------
-func (e *Engine) UpdateByID(id string, assignments interface{}) (int64, error) {
-	if u, err := uuid.Parse(id); err != nil {
-		return 0, nil
+func (e *Engine) UpdateByID(id, assignments interface{}) (int64, error) {
+	assigns, args := UpdateAssignments(assignments)
+	args = append(args, id)
+	q := `UPDATE ` + e.TblName + ` SET ` + assigns + ` WHERE id = UUID_TO_BIN(?);`
+	if result, err := e.Exec(q, args...); err != nil {
+		return 0, err
 	} else {
-		assigns, args := UpdateAssignments(assignments)
-		args = append(args, u)
-		q := `UPDATE ` + e.TblName + ` SET ` + assigns + ` WHERE id = UUID_TO_BIN(?);`
-		if rst, err := e.Exec(q, args...); err != nil {
-			return 0, err
-		} else {
-			return rst.RowsAffected()
-		}
+		return result.RowsAffected()
 	}
 }
 
@@ -348,16 +336,12 @@ func isUpdatedAssignment(v reflect.Value, ctag string) bool {
 //----------------------------------------------------------------
 // Delete
 //----------------------------------------------------------------
-func (e *Engine) DeleteByID(id string) (int64, error) {
-	if u, err := uuid.Parse(id); err != nil {
-		return 0, nil
+func (e *Engine) DeleteByID(id interface{}) (int64, error) {
+	q := `DELETE FROM ` + e.TblName + ` WHERE id = UUID_TO_BIN(:id);`
+	if result, err := e.NamedExec(q, map[string]interface{}{"id": id}); err != nil {
+		return 0, err
 	} else {
-		q := `DELETE FROM ` + e.TblName + ` WHERE id = UUID_TO_BIN(?);`
-		if rst, err := e.Exec(q, u); err != nil {
-			return 0, err
-		} else {
-			return rst.RowsAffected()
-		}
+		return result.RowsAffected()
 	}
 }
 
