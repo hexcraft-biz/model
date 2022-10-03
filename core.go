@@ -211,7 +211,8 @@ func insertAssignments(ams interface{}, fields, placeholders *[]string) {
 		v = v.Elem()
 	}
 
-	for i := 0; i < v.NumField(); i++ {
+	length := v.NumField()
+	for i := 0; i < length; i++ {
 		val, struF := v.Field(i), v.Type().Field(i)
 		if val.Kind() == reflect.Ptr {
 			if val.IsNil() {
@@ -222,15 +223,15 @@ func insertAssignments(ams interface{}, fields, placeholders *[]string) {
 
 		if _, ok := struF.Tag.Lookup(TagDive); ok {
 			insertAssignments(val.Interface(), fields, placeholders)
-		} else if ctag := struF.Tag.Get("db"); ctag != "" && ctag != "-" {
+		} else if dbCol := struF.Tag.Get(TagDB); dbCol != "" && dbCol != "-" {
 			fmtStr := ""
-			*fields = append(*fields, fmt.Sprintf("%s", ctag))
+			*fields = append(*fields, fmt.Sprintf("%s", dbCol))
 			if strings.Contains(val.Type().String(), "uuid.UUID") {
 				fmtStr = "UUID_TO_BIN(:%s)"
 			} else {
 				fmtStr = ":%s"
 			}
-			*placeholders = append(*placeholders, fmt.Sprintf(fmtStr, ctag))
+			*placeholders = append(*placeholders, fmt.Sprintf(fmtStr, dbCol))
 		}
 	}
 }
