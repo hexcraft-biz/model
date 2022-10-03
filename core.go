@@ -239,10 +239,17 @@ func insertAssignments(ams interface{}, fields, placeholders *[]string) {
 //----------------------------------------------------------------
 // Select
 //----------------------------------------------------------------
-func (e *Engine) Has(id interface{}) (bool, error) {
+func (e *Engine) Has(ids interface{}) (bool, error) {
 	flag := false
-	err := e.Get(&flag, `SELECT EXISTS(SELECT 1 FROM `+e.TblName+` WHERE id = UUID_TO_BIN(?));`, id)
-	return flag, err
+	conditions := strings.Join(*(genQueryFromArguments(ids, nil)), " AND ")
+	q := `SELECT EXISTS(SELECT 1 FROM ` + e.TblName + ` WHERE ` + conditions + `);`
+	if rows, err := e.NamedQuery(q, ids); err != nil {
+		return false, err
+	} else if err := rows.StructScan(&flag); err != nil {
+		return false, err
+	} else {
+		return flag, nil
+	}
 }
 
 func (e *Engine) List(dest, ids interface{}, orderby, query string, searchCols []string, pg *Pagination) error {
