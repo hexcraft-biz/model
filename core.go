@@ -267,12 +267,16 @@ func (e *Engine) List(dest, ids interface{}, orderby, query string, searchCols [
 		queryConditions = strings.Join(searchCols, " OR ")
 	}
 
+	if orderby != "" {
+		orderby = ` ORDER BY ` + orderby
+	}
+
 	q := ""
 	if ids != nil && !reflect.ValueOf(ids).IsNil() {
 		conditions := strings.Join(*(genQueryFromArguments(ids, &args)), " AND ")
-		q = `SELECT * FROM ` + e.TblName + ` WHERE ` + conditions + ` AND (` + queryConditions + `) ` + orderby + pg.ToString() + `;`
+		q = `SELECT * FROM ` + e.TblName + ` WHERE ` + conditions + ` AND (` + queryConditions + `)` + orderby + pg.ToString() + `;`
 	} else {
-		q = `SELECT * FROM ` + e.TblName + ` WHERE ` + queryConditions + ` ` + orderby + pg.ToString() + `;`
+		q = `SELECT * FROM ` + e.TblName + ` WHERE ` + queryConditions + orderby + pg.ToString() + `;`
 	}
 
 	if rows, err := e.NamedQuery(q, args); err != nil {
