@@ -178,14 +178,14 @@ type Engine struct {
 
 type EngineInterface interface {
 	Insert(ams interface{}) (sql.Result, error)
-	Has(id interface{}) (bool, error)
+	Has(ids interface{}) (bool, error)
 	List(dest, ids interface{}, orderby, query string, searchCols []string, pg *Pagination) error
 	GetByID(dest, id interface{}) error
 	GetByKey(dest interface{}, key string) error
-	GetByUuidPrimaryKeys(dest, ids interface{}) error
-	UpdateByUuuidPrimaryKeys(ids map[string]interface{}, assignments interface{}) (int64, error)
+	GetByPrimaryKeys(dest, ids interface{}) error
+	UpdateByPrimaryKeys(ids map[string]interface{}, assignments interface{}) (int64, error)
 	DeleteByID(id interface{}) (int64, error)
-	DeleteByUuidPrimaryKeys(ids map[string]interface{}) (int64, error)
+	DeleteByPrimaryKeys(ids map[string]interface{}) (int64, error)
 }
 
 func NewEngine(db *sqlx.DB, tblName string) *Engine {
@@ -298,7 +298,7 @@ func (e *Engine) GetByKey(dest interface{}, key string) error {
 	return e.Get(dest, q, key)
 }
 
-func (e *Engine) GetByUuidPrimaryKeys(dest, ids interface{}) error {
+func (e *Engine) GetByPrimaryKeys(dest, ids interface{}) error {
 	conditions := strings.Join(*(genQueryFromArguments(ids, nil)), " AND ")
 	q := `SELECT * FROM ` + e.TblName + ` WHERE ` + conditions + `;`
 	if rows, err := e.NamedQuery(q, ids); err != nil {
@@ -312,7 +312,7 @@ func (e *Engine) GetByUuidPrimaryKeys(dest, ids interface{}) error {
 // Update
 //	TODO: UPDATE table SET col = 'bb' WHERE col = 'aa';
 //----------------------------------------------------------------
-func (e *Engine) UpdateByUuuidPrimaryKeys(ids, assignments interface{}) (int64, error) {
+func (e *Engine) UpdateByPrimaryKeys(ids, assignments interface{}) (int64, error) {
 	args := map[string]interface{}{}
 	assigns := strings.Join(*(genQueryFromArguments(assignments, &args)), ", ")
 	conditions := strings.Join(*(genQueryFromArguments(ids, &args)), " AND ")
@@ -374,7 +374,7 @@ func (e *Engine) DeleteByID(id interface{}) (int64, error) {
 	}
 }
 
-func (e *Engine) DeleteByUuidPrimaryKeys(ids interface{}) (int64, error) {
+func (e *Engine) DeleteByPrimaryKeys(ids interface{}) (int64, error) {
 	conditions := strings.Join(*(genQueryFromArguments(ids, nil)), " AND ")
 	q := `DELETE FROM ` + e.TblName + ` WHERE ` + conditions + `;`
 	if result, err := e.NamedExec(q, ids); err != nil {
