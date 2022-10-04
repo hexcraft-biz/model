@@ -179,7 +179,7 @@ type EngineInterface interface {
 	Has(ids interface{}) (bool, error)
 	List(dest, ids interface{}, iqp InputQueryParametersInterface, paginate bool) error
 	GetByID(dest, id interface{}) error
-	GetByKey(dest interface{}, key string) error
+	GetByKey(dest, key interface{}) error
 	GetByPrimaryKeys(dest, ids interface{}) error
 	UpdateByPrimaryKeys(ids, assignments interface{}) (int64, error)
 	DeleteByID(id interface{}) (int64, error)
@@ -270,9 +270,9 @@ func (e *Engine) GetByID(dest, id interface{}) error {
 	return e.Get(dest, q, id)
 }
 
-func (e *Engine) GetByKey(dest interface{}, key string) error {
+func (e *Engine) GetByKey(dest, key interface{}) error {
 	q := ""
-	if _, err := uuid.Parse(key); err == nil {
+	if _, ok := key.(uuid.UUID); ok {
 		q = `SELECT * FROM ` + e.TblName + ` WHERE id = UUID_TO_BIN(?);`
 	} else {
 		q = `SELECT * FROM ` + e.TblName + ` WHERE identity = ?;`
