@@ -174,6 +174,7 @@ type Engine struct {
 
 type EngineInterface interface {
 	NewPrototypeList() interface{}
+	NewPrototype() interface{}
 	Insert(ams interface{}) (sql.Result, error)
 	Has(ids interface{}) (bool, error)
 	List(dest, ids interface{}, rqp ReqQueryParametersInterface, paginate bool) error
@@ -197,6 +198,10 @@ func NewEngine(db *sqlx.DB, tblName string) *Engine {
 //----------------------------------------------------------------
 func (e *Engine) NewPrototypeList() interface{} {
 	return &[]*Prototype{}
+}
+
+func (e *Engine) NewPrototype() interface{} {
+	return new(Prototype)
 }
 
 func (e *Engine) Insert(ams interface{}) (sql.Result, error) {
