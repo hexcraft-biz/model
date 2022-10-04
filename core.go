@@ -177,7 +177,7 @@ type EngineInterface interface {
 	NewPrototype() interface{}
 	Insert(ams interface{}) (sql.Result, error)
 	Has(ids interface{}) (bool, error)
-	List(dest, ids interface{}, rqp ReqQueryParametersInterface, paginate bool) error
+	List(dest, ids interface{}, fqp FeedQueryParametersInterface, paginate bool) error
 	GetByID(dest, id interface{}) error
 	GetByKey(dest interface{}, key string) error
 	GetByPrimaryKeys(dest, ids interface{}) error
@@ -253,7 +253,7 @@ func (e *Engine) Has(ids interface{}) (bool, error) {
 	return flag, err
 }
 
-func (e *Engine) List(dest, ids interface{}, rqp ReqQueryParametersInterface, paginate bool) error {
+func (e *Engine) List(dest, ids interface{}, fqp FeedQueryParametersInterface, paginate bool) error {
 	args, conditions, hasPreCondition := []interface{}{}, "", false
 
 	if ids != nil && !reflect.ValueOf(ids).IsNil() {
@@ -261,7 +261,7 @@ func (e *Engine) List(dest, ids interface{}, rqp ReqQueryParametersInterface, pa
 		hasPreCondition = true
 	}
 
-	q := `SELECT * FROM ` + e.TblName + ` WHERE` + conditions + rqp.Build(&args, hasPreCondition, paginate) + `;`
+	q := `SELECT * FROM ` + e.TblName + ` WHERE` + conditions + fqp.Build(&args, hasPreCondition, paginate) + `;`
 	return e.Select(&dest, q, args...)
 }
 
@@ -383,51 +383,51 @@ func (rs *ResultSet) GetRows() []interface{} {
 }
 
 //----------------------------------------------------------------
-// ReqQueryParameters
+// FeedQueryParameters
 //----------------------------------------------------------------
-type ReqQueryParametersInterface interface {
+type FeedQueryParametersInterface interface {
 	Build(args *[]interface{}, hasPreCondition, paginate bool) string
 	GenSearchCondition(args *[]interface{}, hasPreCondition bool) string
 	GenOrderBy() string
 	PaginationInterface
 }
 
-type ReqQueryParameters struct {
+type FeedQueryParameters struct {
 	SearchQuery string   `form:"q" binding:"omitempty"`
 	SearchCols  []string `form:"-" binding:"isdefault"`
 	OrderBy     string   `form:"-" binding:"isdefault"`
 	Pagination
 }
 
-func (rqp *ReqQueryParameters) Build(args *[]interface{}, hasPreCondition, paginate bool) string {
-	q := rqp.GenSearchCondition(args, hasPreCondition) + rqp.GenOrderBy()
+func (fqp *FeedQueryParameters) Build(args *[]interface{}, hasPreCondition, paginate bool) string {
+	q := fqp.GenSearchCondition(args, hasPreCondition) + fqp.GenOrderBy()
 	if paginate {
-		q += rqp.Pagination.ToString(args)
+		q += fqp.Pagination.ToString(args)
 	}
 	return q
 }
 
-func (rqp *ReqQueryParameters) GenSearchCondition(args *[]interface{}, hasPreCondition bool) string {
+func (fqp *FeedQueryParameters) GenSearchCondition(args *[]interface{}, hasPreCondition bool) string {
 	conditions := ""
-	if rqp.SearchQuery != "" && len(rqp.SearchCols) > 0 {
-		for i := range rqp.SearchCols {
-			rqp.SearchCols[i] += " LIKE ?"
-			*args = append(*args, "%"+rqp.SearchQuery+"%")
+	if fqp.SearchQuery != "" && len(fqp.SearchCols) > 0 {
+		for i := range fqp.SearchCols {
+			fqp.SearchCols[i] += " LIKE ?"
+			*args = append(*args, "%"+fqp.SearchQuery+"%")
 		}
 
 		if hasPreCondition {
-			conditions = ` ` + strings.Join(rqp.SearchCols, " OR ")
+			conditions = ` ` + strings.Join(fqp.SearchCols, " OR ")
 		} else {
-			conditions = ` AND (` + strings.Join(rqp.SearchCols, " OR ") + `)`
+			conditions = ` AND (` + strings.Join(fqp.SearchCols, " OR ") + `)`
 		}
 	}
 
 	return conditions
 }
 
-func (rqp *ReqQueryParameters) GenOrderBy() string {
-	if rqp.OrderBy != "" {
-		return ` ORDER BY ` + rqp.OrderBy
+func (fqp *FeedQueryParameters) GenOrderBy() string {
+	if fqp.OrderBy != "" {
+		return ` ORDER BY ` + fqp.OrderBy
 	} else {
 		return ``
 	}
