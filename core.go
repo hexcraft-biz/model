@@ -3,6 +3,7 @@ package model
 import (
 	"database/sql"
 	"fmt"
+	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"reflect"
@@ -14,11 +15,6 @@ const (
 	TagDB     = "db"
 	TagAttach = "attach"
 	TagDive   = "dive"
-
-	DefaultOffset = 0
-	DefaultLength = 20
-	MinLength     = 1
-	MaxLength     = 100
 
 	MysqlErrCodeDuplicateEntry                  = 1062
 	MysqlErrCodeIncorrectValue                  = 1411
@@ -240,50 +236,23 @@ func insertAssignments(ams interface{}, fields, placeholders *[]string) {
 // Select
 //----------------------------------------------------------------
 func (e *Engine) Has(ids interface{}) (bool, error) {
-	flag := false
-	conditions := strings.Join(*(genQueryFromArguments(ids, nil)), " AND ")
+	flag, args := false, []interface{}{}
+	conditions := strings.Join(*(genBindVarSql(ids, &args)), " AND ")
 	q := `SELECT EXISTS(SELECT 1 FROM ` + e.TblName + ` WHERE ` + conditions + `);`
-	if rows, err := e.NamedQuery(q, ids); err != nil {
-		return false, err
-	} else if err := rows.StructScan(&flag); err != nil {
-		return false, err
-	} else {
-		return flag, nil
-	}
+	err := e.Get(&flag, q, args...)
+	return flag, err
 }
 
-func (e *Engine) List(dest, ids interface{}, orderby, query string, searchCols []string, pg *Pagination) error {
-	args := map[string]interface{}{}
-	if pg == nil {
-		pg = NewDefaultPagination()
-	}
+func (e *Engine) List(dest, ids interface{}, qp QueryParametersInterface, paginate bool) error {
+	args, conditions, hasPreCondition := []interface{}{}, "", false
 
-	queryConditions := ""
-	if query != "" && len(searchCols) > 0 {
-		args["q"] = "%" + query + "%"
-		for i := range searchCols {
-			searchCols[i] += " LIKE :query"
-		}
-		queryConditions = strings.Join(searchCols, " OR ")
-	}
-
-	if orderby != "" {
-		orderby = ` ORDER BY ` + orderby
-	}
-
-	q := ""
 	if ids != nil && !reflect.ValueOf(ids).IsNil() {
-		conditions := strings.Join(*(genQueryFromArguments(ids, &args)), " AND ")
-		q = `SELECT * FROM ` + e.TblName + ` WHERE ` + conditions + ` AND (` + queryConditions + `)` + orderby + pg.ToString() + `;`
-	} else {
-		q = `SELECT * FROM ` + e.TblName + ` WHERE ` + queryConditions + orderby + pg.ToString() + `;`
+		conditions = ` ` + strings.Join(*(genBindVarSql(ids, &args)), " AND ")
+		hasPreCondition = true
 	}
 
-	if rows, err := e.NamedQuery(q, args); err != nil {
-		return err
-	} else {
-		return rows.StructScan(dest)
-	}
+	q := `SELECT * FROM ` + e.TblName + ` WHERE` + conditions + qp.Build(&args, hasPreCondition, paginate) + `;`
+	return e.Select(&dest, q, args...)
 }
 
 func (e *Engine) GetByID(dest, id interface{}) error {
@@ -303,13 +272,10 @@ func (e *Engine) GetByKey(dest interface{}, key string) error {
 }
 
 func (e *Engine) GetByPrimaryKeys(dest, ids interface{}) error {
-	conditions := strings.Join(*(genQueryFromArguments(ids, nil)), " AND ")
+	args := []interface{}{}
+	conditions := strings.Join(*(genBindVarSql(ids, &args)), " AND ")
 	q := `SELECT * FROM ` + e.TblName + ` WHERE ` + conditions + `;`
-	if rows, err := e.NamedQuery(q, ids); err != nil {
-		return err
-	} else {
-		return rows.StructScan(dest)
-	}
+	return e.Get(dest, q, ids)
 }
 
 //----------------------------------------------------------------
@@ -318,52 +284,14 @@ func (e *Engine) GetByPrimaryKeys(dest, ids interface{}) error {
 //----------------------------------------------------------------
 func (e *Engine) UpdateByPrimaryKeys(ids, assignments interface{}) (int64, error) {
 	args := map[string]interface{}{}
-	assigns := strings.Join(*(genQueryFromArguments(assignments, &args)), ", ")
-	conditions := strings.Join(*(genQueryFromArguments(ids, &args)), " AND ")
+	assigns := strings.Join(*(genNamedSql(assignments, &args)), ", ")
+	conditions := strings.Join(*(genNamedSql(ids, &args)), " AND ")
 	q := `UPDATE ` + e.TblName + ` SET ` + assigns + ` WHERE ` + conditions + `;`
 	if result, err := e.NamedExec(q, args); err != nil {
 		return 0, err
 	} else {
 		return result.RowsAffected()
 	}
-}
-
-func genQueryFromArguments(sour interface{}, args *map[string]interface{}) *[]string {
-	assigns, v := []string{}, reflect.ValueOf(sour)
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-
-	length := v.NumField()
-	for i := 0; i < length; i += 1 {
-		val, struF := v.Field(i), v.Type().Field(i)
-		dbCol := struF.Tag.Get(TagDB)
-		if isValidAssignment(val, dbCol) {
-			if args != nil {
-				(*args)[dbCol] = val
-			}
-			fmtStr := ""
-			if strings.Contains(struF.Type.String(), "uuid.UUID") {
-				fmtStr = "%s = UUID_TO_BIN(:%s)"
-			} else {
-				fmtStr = "%s = :%s"
-			}
-			assigns = append(assigns, fmt.Sprintf(fmtStr, dbCol, dbCol))
-		}
-	}
-
-	return &assigns
-}
-
-func isValidAssignment(v reflect.Value, dbCol string) bool {
-	if dbCol == "" || dbCol == "-" {
-		return false
-	} else if v.Kind() != reflect.Ptr {
-		return true
-	} else if v.Kind() == reflect.Ptr && !v.IsNil() {
-		return true
-	}
-	return false
 }
 
 //----------------------------------------------------------------
@@ -379,55 +307,13 @@ func (e *Engine) DeleteByID(id interface{}) (int64, error) {
 }
 
 func (e *Engine) DeleteByPrimaryKeys(ids interface{}) (int64, error) {
-	conditions := strings.Join(*(genQueryFromArguments(ids, nil)), " AND ")
+	conditions := strings.Join(*(genNamedSql(ids, nil)), " AND ")
 	q := `DELETE FROM ` + e.TblName + ` WHERE ` + conditions + `;`
 	if result, err := e.NamedExec(q, ids); err != nil {
 		return 0, err
 	} else {
 		return result.RowsAffected()
 	}
-}
-
-//----------------------------------------------------------------
-// Pagination
-//----------------------------------------------------------------
-type Pagination struct {
-	Offset uint64
-	Length uint64
-}
-
-func NewDefaultPagination() *Pagination {
-	return NewPagination(DefaultOffset, DefaultLength)
-}
-
-func NewPagination(offset, length uint64) *Pagination {
-	return &Pagination{
-		Offset: offset,
-		Length: validLength(length),
-	}
-}
-
-func (p *Pagination) Set(offset, length uint64) *Pagination {
-	p.Offset = offset
-	p.Length = validLength(length)
-	return p
-}
-
-func (p *Pagination) ToString() string {
-	return fmt.Sprintf(` LIMIT %d, %d`, p.Offset, p.Length)
-}
-
-func validLength(length uint64) uint64 {
-	switch {
-	case length == 0:
-		length = DefaultLength
-	case length > 0 && length < MinLength:
-		length = MinLength
-	case length > MaxLength:
-		length = MaxLength
-	}
-
-	return length
 }
 
 //================================================================
@@ -484,4 +370,187 @@ func (rs *ResultSet) GetRows() []interface{} {
 	}
 
 	return absRows
+}
+
+//----------------------------------------------------------------
+// QueryParameters
+//----------------------------------------------------------------
+type QueryParametersInterface interface {
+	Build(args *[]interface{}, hasPreCondition, paginate bool) string
+	GenSearchCondition(args *[]interface{}, hasPreCondition bool) string
+	GenOrderBy() string
+	PaginationInterface
+}
+
+type QueryParameters struct {
+	SearchQuery string   `form:"q" binding:"omitempty"`
+	SearchCols  []string `form:"-" binding:"isdefault"`
+	OrderBy     string   `form:"-" binding:"isdefault"`
+	Pagination
+}
+
+func (qp *QueryParameters) Build(args *[]interface{}, hasPreCondition, paginate bool) string {
+	q := qp.GenSearchCondition(args, hasPreCondition) + qp.GenOrderBy()
+	if paginate {
+		q += qp.Pagination.ToString(args)
+	}
+	return q
+}
+
+func (qp *QueryParameters) GenSearchCondition(args *[]interface{}, hasPreCondition bool) string {
+	conditions := ""
+	if qp.SearchQuery != "" && len(qp.SearchCols) > 0 {
+		for i := range qp.SearchCols {
+			qp.SearchCols[i] += " LIKE ?"
+			*args = append(*args, "%"+qp.SearchQuery+"%")
+		}
+
+		if hasPreCondition {
+			conditions = ` ` + strings.Join(qp.SearchCols, " OR ")
+		} else {
+			conditions = ` AND (` + strings.Join(qp.SearchCols, " OR ") + `)`
+		}
+	}
+
+	return conditions
+}
+
+func (qp *QueryParameters) GenOrderBy() string {
+	if qp.OrderBy != "" {
+		return ` ORDER BY ` + qp.OrderBy
+	} else {
+		return ``
+	}
+}
+
+//----------------------------------------------------------------
+// Pagination
+//----------------------------------------------------------------
+const (
+	PaginationDefaultOffset = 0
+	PaginationDefaultLength = 16
+	PaginationMinLength     = 1
+	PaginationMaxLength     = 256
+)
+
+type PaginationInterface interface {
+	ToString(args *[]interface{}) string
+}
+
+type Pagination struct {
+	Offset uint64 `form:"pos" binding:"omitempty,validateOffset"`
+	Length uint64 `form:"len" binding:"omitempty,validateLength"`
+}
+
+func (p *Pagination) ToString(args *[]interface{}) string {
+	*args = append(*args, p.Offset, p.Length)
+	return ` LIMIT ?, ?`
+}
+
+func ValidatorPaginationOffset(fl validator.FieldLevel) bool {
+	v := fl.Field()
+	if _, ok := v.Interface().(uint64); !ok {
+		v.Set(reflect.ValueOf(0))
+	}
+	return true
+}
+
+func ValidatorPaginationLength(fl validator.FieldLevel) bool {
+	v := fl.Field()
+	if length, ok := v.Interface().(uint64); !ok {
+		v.Set(reflect.ValueOf(PaginationMinLength))
+	} else {
+		switch {
+		case length == 0:
+			v.Set(reflect.ValueOf(PaginationDefaultLength))
+		case length > 0 && length < PaginationMinLength:
+			v.Set(reflect.ValueOf(PaginationMinLength))
+		case length > PaginationMaxLength:
+			v.Set(reflect.ValueOf(PaginationMaxLength))
+		}
+	}
+	return true
+}
+
+//----------------------------------------------------------------
+// Bindvar
+//----------------------------------------------------------------
+func genBindVarSql(sour interface{}, args *[]interface{}) *[]string {
+	assigns, v := []string{}, reflect.ValueOf(sour)
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	length := v.NumField()
+	for i := 0; i < length; i += 1 {
+		val, struF := v.Field(i), v.Type().Field(i)
+		dbCol := struF.Tag.Get(TagDB)
+		if isValidAssignment(val, dbCol) {
+			if args != nil {
+				*args = append(*args, val)
+			}
+			fmtStr := ""
+			if strings.Contains(struF.Type.String(), "uuid.UUID") {
+				fmtStr = "%s = UUID_TO_BIN(?)"
+			} else {
+				fmtStr = "%s = ?"
+			}
+			assigns = append(assigns, fmt.Sprintf(fmtStr, dbCol))
+		}
+	}
+
+	return &assigns
+}
+
+//----------------------------------------------------------------
+// Named
+//----------------------------------------------------------------
+func genNamedSql(sour interface{}, args *map[string]interface{}) *[]string {
+	assigns, v := []string{}, reflect.ValueOf(sour)
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	length := v.NumField()
+	for i := 0; i < length; i += 1 {
+		val, struF := v.Field(i), v.Type().Field(i)
+		dbCol := struF.Tag.Get(TagDB)
+		if isValidAssignment(val, dbCol) {
+			if args != nil {
+				(*args)[dbCol] = val
+			}
+			fmtStr := ""
+			if strings.Contains(struF.Type.String(), "uuid.UUID") {
+				fmtStr = "%s = UUID_TO_BIN(:%s)"
+			} else {
+				fmtStr = "%s = :%s"
+			}
+			assigns = append(assigns, fmt.Sprintf(fmtStr, dbCol, dbCol))
+		}
+	}
+
+	return &assigns
+}
+
+func isValidAssignment(v reflect.Value, dbCol string) bool {
+	if dbCol == "" || dbCol == "-" {
+		return false
+	} else if v.Kind() != reflect.Ptr {
+		return true
+	} else if v.Kind() == reflect.Ptr && !v.IsNil() {
+		return true
+	}
+	return false
+}
+
+//----------------------------------------------------------------
+// Misc
+//----------------------------------------------------------------
+func IsSlice(t interface{}) bool {
+	switch reflect.TypeOf(t).Kind() {
+	case reflect.Slice:
+		return true
+	default:
+		return false
+	}
 }
