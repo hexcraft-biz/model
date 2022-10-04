@@ -173,9 +173,10 @@ type Engine struct {
 }
 
 type EngineInterface interface {
+	NewPrototype() interface{}
 	Insert(ams interface{}) (sql.Result, error)
 	Has(ids interface{}) (bool, error)
-	List(dest, ids interface{}, orderby, query string, searchCols []string, pg *Pagination) error
+	List(dest, ids interface{}, rqp ReqQueryParametersInterface, paginate bool) error
 	GetByID(dest, id interface{}) error
 	GetByKey(dest interface{}, key string) error
 	GetByPrimaryKeys(dest, ids interface{}) error
@@ -194,6 +195,10 @@ func NewEngine(db *sqlx.DB, tblName string) *Engine {
 //----------------------------------------------------------------
 // Insert
 //----------------------------------------------------------------
+func (e *Engine) NewPrototype() interface{} {
+	return &Prototype{}
+}
+
 func (e *Engine) Insert(ams interface{}) (sql.Result, error) {
 	fields, placeholders := []string{}, []string{}
 	insertAssignments(ams, &fields, &placeholders)
@@ -243,7 +248,7 @@ func (e *Engine) Has(ids interface{}) (bool, error) {
 	return flag, err
 }
 
-func (e *Engine) List(dest, ids interface{}, qp QueryParametersInterface, paginate bool) error {
+func (e *Engine) List(dest, ids interface{}, rqp ReqQueryParametersInterface, paginate bool) error {
 	args, conditions, hasPreCondition := []interface{}{}, "", false
 
 	if ids != nil && !reflect.ValueOf(ids).IsNil() {
@@ -251,7 +256,7 @@ func (e *Engine) List(dest, ids interface{}, qp QueryParametersInterface, pagina
 		hasPreCondition = true
 	}
 
-	q := `SELECT * FROM ` + e.TblName + ` WHERE` + conditions + qp.Build(&args, hasPreCondition, paginate) + `;`
+	q := `SELECT * FROM ` + e.TblName + ` WHERE` + conditions + rqp.Build(&args, hasPreCondition, paginate) + `;`
 	return e.Select(&dest, q, args...)
 }
 
@@ -373,51 +378,51 @@ func (rs *ResultSet) GetRows() []interface{} {
 }
 
 //----------------------------------------------------------------
-// QueryParameters
+// ReqQueryParameters
 //----------------------------------------------------------------
-type QueryParametersInterface interface {
+type ReqQueryParametersInterface interface {
 	Build(args *[]interface{}, hasPreCondition, paginate bool) string
 	GenSearchCondition(args *[]interface{}, hasPreCondition bool) string
 	GenOrderBy() string
 	PaginationInterface
 }
 
-type QueryParameters struct {
+type ReqQueryParameters struct {
 	SearchQuery string   `form:"q" binding:"omitempty"`
 	SearchCols  []string `form:"-" binding:"isdefault"`
 	OrderBy     string   `form:"-" binding:"isdefault"`
 	Pagination
 }
 
-func (qp *QueryParameters) Build(args *[]interface{}, hasPreCondition, paginate bool) string {
-	q := qp.GenSearchCondition(args, hasPreCondition) + qp.GenOrderBy()
+func (rqp *ReqQueryParameters) Build(args *[]interface{}, hasPreCondition, paginate bool) string {
+	q := rqp.GenSearchCondition(args, hasPreCondition) + rqp.GenOrderBy()
 	if paginate {
-		q += qp.Pagination.ToString(args)
+		q += rqp.Pagination.ToString(args)
 	}
 	return q
 }
 
-func (qp *QueryParameters) GenSearchCondition(args *[]interface{}, hasPreCondition bool) string {
+func (rqp *ReqQueryParameters) GenSearchCondition(args *[]interface{}, hasPreCondition bool) string {
 	conditions := ""
-	if qp.SearchQuery != "" && len(qp.SearchCols) > 0 {
-		for i := range qp.SearchCols {
-			qp.SearchCols[i] += " LIKE ?"
-			*args = append(*args, "%"+qp.SearchQuery+"%")
+	if rqp.SearchQuery != "" && len(rqp.SearchCols) > 0 {
+		for i := range rqp.SearchCols {
+			rqp.SearchCols[i] += " LIKE ?"
+			*args = append(*args, "%"+rqp.SearchQuery+"%")
 		}
 
 		if hasPreCondition {
-			conditions = ` ` + strings.Join(qp.SearchCols, " OR ")
+			conditions = ` ` + strings.Join(rqp.SearchCols, " OR ")
 		} else {
-			conditions = ` AND (` + strings.Join(qp.SearchCols, " OR ") + `)`
+			conditions = ` AND (` + strings.Join(rqp.SearchCols, " OR ") + `)`
 		}
 	}
 
 	return conditions
 }
 
-func (qp *QueryParameters) GenOrderBy() string {
-	if qp.OrderBy != "" {
-		return ` ORDER BY ` + qp.OrderBy
+func (rqp *ReqQueryParameters) GenOrderBy() string {
+	if rqp.OrderBy != "" {
+		return ` ORDER BY ` + rqp.OrderBy
 	} else {
 		return ``
 	}
