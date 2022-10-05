@@ -14,6 +14,7 @@ import (
 const (
 	TagDB       = "db"
 	TagOperator = "dbop"
+	TagCol      = "dbcol"
 	TagDive     = "dive"
 
 	MysqlErrCodeDuplicateEntry                  = 1062
@@ -254,8 +255,8 @@ func ValidatorPaginationLength(fl validator.FieldLevel) bool {
 //----------------------------------------------------------------
 // Misc
 //----------------------------------------------------------------
-func genInsertAssignments(ams interface{}, fields, placeholders *[]string) {
-	v := reflect.ValueOf(ams)
+func genInsertAssignments(assignments interface{}, fields, placeholders *[]string) {
+	v := reflect.ValueOf(assignments)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
 	}
@@ -294,7 +295,10 @@ func genConditionsVar(sour interface{}, args *[]interface{}) *[]string {
 	length := v.NumField()
 	for i := 0; i < length; i += 1 {
 		val, struF := v.Field(i), v.Type().Field(i)
-		dbCol := struF.Tag.Get(TagDB)
+		dbCol, dbVal := struF.Tag.Get(TagCol), struF.Tag.Get(TagDB)
+		if dbCol == "" {
+			dbCol = dbVal
+		}
 		if isValidAssignment(val, dbCol) {
 			operator := struF.Tag.Get(TagOperator)
 			if operator == "" {
@@ -325,7 +329,10 @@ func genConditionsNamed(sour interface{}, args *map[string]interface{}) *[]strin
 	length := v.NumField()
 	for i := 0; i < length; i += 1 {
 		val, struF := v.Field(i), v.Type().Field(i)
-		dbCol := struF.Tag.Get(TagDB)
+		dbCol, dbVal := struF.Tag.Get(TagCol), struF.Tag.Get(TagDB)
+		if dbCol == "" {
+			dbCol = dbVal
+		}
 		if isValidAssignment(val, dbCol) {
 			operator := struF.Tag.Get(TagOperator)
 			if operator == "" {
@@ -340,7 +347,7 @@ func genConditionsNamed(sour interface{}, args *map[string]interface{}) *[]strin
 			} else {
 				fmtStr = "%s " + operator + " :%s"
 			}
-			assigns = append(assigns, fmt.Sprintf(fmtStr, dbCol, dbCol))
+			assigns = append(assigns, fmt.Sprintf(fmtStr, dbCol, dbVal))
 		}
 	}
 
