@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	TagDB     = "db"
-	TagAttach = "attach"
-	TagDive   = "dive"
+	TagDB       = "db"
+	TagOperator = "dbop"
+	TagDive     = "dive"
 
 	MysqlErrCodeDuplicateEntry                  = 1062
 	MysqlErrCodeIncorrectValue                  = 1411
@@ -26,142 +26,33 @@ const (
 )
 
 //================================================================
-//
+// Prototype
 //================================================================
-type PrototypeTime struct {
-	Ctime time.Time `db:"ctime" json:"createdAt"`
-	Mtime time.Time `db:"mtime" json:"modifiedAt"`
-}
-
-func (pt *PrototypeTime) InitTime() {
-	pt.Ctime = time.Now().UTC().Truncate(time.Second)
-	pt.Mtime = pt.Ctime
-}
-
-//================================================================
-//
-//================================================================
-type Prototype struct {
-	ID    *uuid.UUID `db:"id" json:"id"`
-	Ctime *time.Time `db:"ctime" json:"createdAt"`
-	Mtime *time.Time `db:"mtime" json:"modifiedAt"`
-}
-
 type PrototypeInterface interface {
 	Init()
 }
 
+type PrototypeTime struct {
+	Ctime *time.Time `db:"ctime" json:"createdAt"`
+	Mtime *time.Time `db:"mtime" json:"modifiedAt"`
+}
+
+func (pt *PrototypeTime) Init() {
+	ctime := time.Now().UTC().Truncate(time.Second)
+	mtime := ctime
+	pt.Ctime = &ctime
+	pt.Mtime = &mtime
+}
+
+type Prototype struct {
+	ID *uuid.UUID `db:"id" json:"id"`
+	PrototypeTime
+}
+
 func (p *Prototype) Init() {
 	id := uuid.New()
-	ctime := time.Now().UTC().Truncate(time.Second)
-	mtime := ctime
-
-	p.ID, p.Ctime, p.Mtime = &id, &ctime, &mtime
-}
-
-func NewPrototype() *Prototype {
-	id := uuid.New()
-	ctime := time.Now().UTC().Truncate(time.Second)
-	mtime := ctime
-	return &Prototype{
-		ID:    &id,
-		Ctime: &ctime,
-		Mtime: &mtime,
-	}
-}
-
-//================================================================
-//
-//================================================================
-func attach(dest, sour interface{}) {
-	dv := reflect.ValueOf(dest)
-	for dv.Kind() == reflect.Ptr {
-		dv = dv.Elem()
-	}
-
-	for i := 0; i < dv.NumField(); i += 1 {
-		fVal, fStru := dv.Field(i), dv.Type().Field(i)
-		if names, ok := fStru.Tag.Lookup(TagDive); ok {
-			if names != "" && names != "-" {
-				if _, ok := findField(sour, strings.Split(names, ".")); ok {
-					if fVal.IsNil() {
-						typ := fStru.Type
-						for typ.Kind() == reflect.Ptr {
-							typ = typ.Elem()
-						}
-						fVal.Set(reflect.New(typ))
-					}
-
-					attach(fVal.Interface(), sour)
-				}
-			}
-		} else {
-			if names, ok := fStru.Tag.Lookup(TagAttach); ok {
-				if sfv, ok := findField(sour, strings.Split(names, ".")); ok {
-					assignValue(fVal, sfv)
-				}
-			}
-		}
-	}
-}
-
-func assignValue(dv, sv reflect.Value) {
-	// TODO:
-	sourType, destType := sv.Type().String(), dv.Type().String()
-	// fmt.Println("sourType:", sourType, "CanAddr:", sv.CanAddr(), "destType:", destType)
-	switch sourType {
-	case "time.Time":
-		switch destType {
-		case "string":
-			dv.Set(reflect.ValueOf(sv.Interface().(time.Time).Format(time.RFC3339)))
-		case "*string":
-			t := sv.Interface().(time.Time).Format(time.RFC3339)
-			dv.Set(reflect.ValueOf(&t))
-		case "*time.Time":
-			dv.Set(sv.Addr())
-		}
-	//case "uuid.UUID":
-	//	switch destType {
-	//	case "string":
-	//		dv.Set(reflect.ValueOf(sv.Interface().(uuid.UUID).String()))
-	//	}
-	case "string":
-		switch destType {
-		case "string":
-			dv.Set(reflect.ValueOf(sv.Interface().(string)))
-		case "*string":
-			t := sv.Interface().(string)
-			dv.Set(reflect.ValueOf(&t))
-		}
-	default:
-		if strings.HasPrefix(destType, "*") {
-			dv.Set(sv.Addr())
-		} else {
-			dv.Set(sv)
-		}
-	}
-	// TODO:
-}
-
-func findField(sour interface{}, fieldNames []string) (reflect.Value, bool) {
-	v := reflect.ValueOf(sour)
-	for v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-
-	var rstV reflect.Value
-	for i := range fieldNames {
-		rstV = v.FieldByName(fieldNames[i])
-		if !rstV.IsValid() || (rstV.Kind() == reflect.Ptr && rstV.IsZero()) {
-			return reflect.Value{}, false
-		}
-		for rstV.Kind() == reflect.Ptr {
-			rstV = rstV.Elem()
-		}
-		v = rstV
-	}
-
-	return rstV, true
+	p.ID = &id
+	p.PrototypeTime.Init()
 }
 
 //================================================================
@@ -172,20 +63,6 @@ type Engine struct {
 	TblName string
 }
 
-type EngineInterface interface {
-	NewPrototypeList() interface{}
-	NewPrototype() interface{}
-	Insert(ams interface{}) (sql.Result, error)
-	Has(ids interface{}) (bool, error)
-	List(dest, ids interface{}, qp QueryParametersInterface, paginate bool) error
-	GetByID(dest, id interface{}) error
-	GetByKey(dest, key interface{}) error
-	GetByPrimaryKeys(dest, ids interface{}) error
-	UpdateByPrimaryKeys(ids, assignments interface{}) (int64, error)
-	DeleteByID(id interface{}) (int64, error)
-	DeleteByPrimaryKeys(ids interface{}) (int64, error)
-}
-
 func NewEngine(db *sqlx.DB, tblName string) *Engine {
 	return &Engine{
 		DB:      db,
@@ -193,71 +70,46 @@ func NewEngine(db *sqlx.DB, tblName string) *Engine {
 	}
 }
 
-//----------------------------------------------------------------
-// Insert
-//----------------------------------------------------------------
-func (e *Engine) NewPrototypeList() interface{} {
+type EngineInterface interface {
+	NewRows() interface{}
+	NewRow() interface{}
+	Insert(assignments interface{}) (sql.Result, error)
+	Has(conds interface{}) (bool, error)
+	FetchRows(dest, conds interface{}, qp QueryParametersInterface, paginate bool) error
+	FetchRow(dest, conds interface{}) error
+	FetchByKey(dest, key interface{}) error
+	Update(conds, assignments interface{}) (sql.Result, error)
+	Delete(conds interface{}) (sql.Result, error)
+}
+
+func (e *Engine) NewRows() interface{} {
 	return &[]*Prototype{}
 }
 
-func (e *Engine) NewPrototype() interface{} {
+func (e *Engine) NewRow() interface{} {
 	return new(Prototype)
 }
 
-func (e *Engine) Insert(ams interface{}) (sql.Result, error) {
+func (e *Engine) Insert(assignments interface{}) (sql.Result, error) {
 	fields, placeholders := []string{}, []string{}
-	insertAssignments(ams, &fields, &placeholders)
+	genInsertAssignments(assignments, &fields, &placeholders)
 	q := `INSERT INTO ` + e.TblName + ` (` + strings.Join(fields, ",") + `) VALUES (` + strings.Join(placeholders, ",") + `);`
-	return e.NamedExec(q, ams)
+	return e.NamedExec(q, assignments)
 }
 
-func insertAssignments(ams interface{}, fields, placeholders *[]string) {
-	v := reflect.ValueOf(ams)
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-
-	length := v.NumField()
-	for i := 0; i < length; i++ {
-		val, struF := v.Field(i), v.Type().Field(i)
-		if val.Kind() == reflect.Ptr {
-			if val.IsNil() {
-				continue
-			}
-			val = val.Elem()
-		}
-
-		if _, ok := struF.Tag.Lookup(TagDive); ok {
-			insertAssignments(val.Interface(), fields, placeholders)
-		} else if dbCol := struF.Tag.Get(TagDB); dbCol != "" && dbCol != "-" {
-			fmtStr := ""
-			*fields = append(*fields, fmt.Sprintf("%s", dbCol))
-			if strings.Contains(val.Type().String(), "uuid.UUID") {
-				fmtStr = "UUID_TO_BIN(:%s)"
-			} else {
-				fmtStr = ":%s"
-			}
-			*placeholders = append(*placeholders, fmt.Sprintf(fmtStr, dbCol))
-		}
-	}
-}
-
-//----------------------------------------------------------------
-// Select
-//----------------------------------------------------------------
-func (e *Engine) Has(ids interface{}) (bool, error) {
+func (e *Engine) Has(conds interface{}) (bool, error) {
 	flag, args := false, []interface{}{}
-	conditions := strings.Join(*(genBindVarSql(ids, &args)), " AND ")
+	conditions := strings.Join(*(genConditionsVar(conds, &args)), " AND ")
 	q := `SELECT EXISTS(SELECT 1 FROM ` + e.TblName + ` WHERE ` + conditions + `);`
 	err := e.Get(&flag, q, args...)
 	return flag, err
 }
 
-func (e *Engine) List(dest, ids interface{}, qp QueryParametersInterface, paginate bool) error {
+func (e *Engine) FetchRows(dest, conds interface{}, qp QueryParametersInterface, paginate bool) error {
 	args, conditions, hasPreCondition := []interface{}{}, "", false
 
-	if ids != nil && !reflect.ValueOf(ids).IsNil() {
-		conditions = ` ` + strings.Join(*(genBindVarSql(ids, &args)), " AND ")
+	if conds != nil && !reflect.ValueOf(conds).IsNil() {
+		conditions = ` ` + strings.Join(*(genConditionsVar(conds, &args)), " AND ")
 		hasPreCondition = true
 	}
 
@@ -265,12 +117,15 @@ func (e *Engine) List(dest, ids interface{}, qp QueryParametersInterface, pagina
 	return e.Select(&dest, q, args...)
 }
 
-func (e *Engine) GetByID(dest, id interface{}) error {
-	q := `SELECT * FROM ` + e.TblName + ` WHERE id = UUID_TO_BIN(?);`
-	return e.Get(dest, q, id)
+func (e *Engine) FetchRow(dest, conds interface{}) error {
+	args := []interface{}{}
+	conditions := strings.Join(*(genConditionsVar(conds, &args)), " AND ")
+	q := `SELECT * FROM ` + e.TblName + ` WHERE ` + conditions + `;`
+	return e.Get(dest, q, conds)
 }
 
-func (e *Engine) GetByKey(dest, key interface{}) error {
+// TODO: to be fixed
+func (e *Engine) FetchByKey(dest, key interface{}) error {
 	q := ""
 	if _, ok := key.(uuid.UUID); ok {
 		q = `SELECT * FROM ` + e.TblName + ` WHERE id = UUID_TO_BIN(?);`
@@ -281,105 +136,19 @@ func (e *Engine) GetByKey(dest, key interface{}) error {
 	return e.Get(dest, q, key)
 }
 
-func (e *Engine) GetByPrimaryKeys(dest, ids interface{}) error {
-	args := []interface{}{}
-	conditions := strings.Join(*(genBindVarSql(ids, &args)), " AND ")
-	q := `SELECT * FROM ` + e.TblName + ` WHERE ` + conditions + `;`
-	return e.Get(dest, q, ids)
-}
-
-//----------------------------------------------------------------
-// Update
-//	TODO: UPDATE table SET col = 'bb' WHERE col = 'aa';
-//----------------------------------------------------------------
-func (e *Engine) UpdateByPrimaryKeys(ids, assignments interface{}) (int64, error) {
+//	TODO: bug happended when SET col = 'bb' WHERE col = 'aa';
+func (e *Engine) Update(conds, assignments interface{}) (sql.Result, error) {
 	args := map[string]interface{}{}
-	assigns := strings.Join(*(genNamedSql(assignments, &args)), ", ")
-	conditions := strings.Join(*(genNamedSql(ids, &args)), " AND ")
+	assigns := strings.Join(*(genConditionsNamed(assignments, &args)), ", ")
+	conditions := strings.Join(*(genConditionsNamed(conds, &args)), " AND ")
 	q := `UPDATE ` + e.TblName + ` SET ` + assigns + ` WHERE ` + conditions + `;`
-	if result, err := e.NamedExec(q, args); err != nil {
-		return 0, err
-	} else {
-		return result.RowsAffected()
-	}
+	return e.NamedExec(q, args)
 }
 
-//----------------------------------------------------------------
-// Delete
-//----------------------------------------------------------------
-func (e *Engine) DeleteByID(id interface{}) (int64, error) {
-	q := `DELETE FROM ` + e.TblName + ` WHERE id = UUID_TO_BIN(:id);`
-	if result, err := e.NamedExec(q, map[string]interface{}{"id": id}); err != nil {
-		return 0, err
-	} else {
-		return result.RowsAffected()
-	}
-}
-
-func (e *Engine) DeleteByPrimaryKeys(ids interface{}) (int64, error) {
-	conditions := strings.Join(*(genNamedSql(ids, nil)), " AND ")
+func (e *Engine) Delete(conds interface{}) (sql.Result, error) {
+	conditions := strings.Join(*(genConditionsNamed(conds, nil)), " AND ")
 	q := `DELETE FROM ` + e.TblName + ` WHERE ` + conditions + `;`
-	if result, err := e.NamedExec(q, ids); err != nil {
-		return 0, err
-	} else {
-		return result.RowsAffected()
-	}
-}
-
-//================================================================
-// ResultSet
-//================================================================
-type ResultSet struct {
-	Result       interface{}
-	abstractType reflect.Type
-}
-
-func NewResultSet(r interface{}) *ResultSet {
-	return &ResultSet{Result: r, abstractType: nil}
-}
-
-func (rs *ResultSet) AppliedBy(abs interface{}) *ResultSet {
-	v := reflect.ValueOf(abs)
-	for v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-
-	rs.abstractType = v.Type()
-	return rs
-}
-
-func (rs *ResultSet) GetRow() interface{} {
-	var row interface{}
-
-	if reflect.TypeOf(rs.Result).Kind() == reflect.Slice {
-		row = reflect.ValueOf(rs.Result).Index(0).Interface()
-	} else {
-		row = rs.Result
-	}
-
-	absRow := reflect.New(rs.abstractType).Interface()
-	attach(absRow, row)
-	return absRow
-}
-
-func (rs *ResultSet) GetRows() []interface{} {
-	var absRows []interface{}
-
-	if reflect.TypeOf(rs.Result).Kind() == reflect.Slice {
-		v := reflect.ValueOf(rs.Result)
-		length := v.Len()
-		absRows = make([]interface{}, length)
-		for i := 0; i < length; i += 1 {
-			absRows[i] = reflect.New(rs.abstractType).Interface()
-			attach(absRows[i], v.Index(i).Interface())
-		}
-	} else {
-		absRows = make([]interface{}, 1)
-		absRows[0] = reflect.New(rs.abstractType).Interface()
-		attach(absRows[0], rs.Result)
-	}
-
-	return absRows
+	return e.NamedExec(q, conds)
 }
 
 //----------------------------------------------------------------
@@ -483,9 +252,40 @@ func ValidatorPaginationLength(fl validator.FieldLevel) bool {
 }
 
 //----------------------------------------------------------------
-// Bindvar
+// Misc
 //----------------------------------------------------------------
-func genBindVarSql(sour interface{}, args *[]interface{}) *[]string {
+func genInsertAssignments(ams interface{}, fields, placeholders *[]string) {
+	v := reflect.ValueOf(ams)
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	length := v.NumField()
+	for i := 0; i < length; i++ {
+		val, struF := v.Field(i), v.Type().Field(i)
+		if val.Kind() == reflect.Ptr {
+			if val.IsNil() {
+				continue
+			}
+			val = val.Elem()
+		}
+
+		if _, ok := struF.Tag.Lookup(TagDive); ok {
+			genInsertAssignments(val.Interface(), fields, placeholders)
+		} else if dbCol := struF.Tag.Get(TagDB); dbCol != "" && dbCol != "-" {
+			fmtStr := ""
+			*fields = append(*fields, fmt.Sprintf("%s", dbCol))
+			if strings.Contains(val.Type().String(), "uuid.UUID") {
+				fmtStr = "UUID_TO_BIN(:%s)"
+			} else {
+				fmtStr = ":%s"
+			}
+			*placeholders = append(*placeholders, fmt.Sprintf(fmtStr, dbCol))
+		}
+	}
+}
+
+func genConditionsVar(sour interface{}, args *[]interface{}) *[]string {
 	assigns, v := []string{}, reflect.ValueOf(sour)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
@@ -496,14 +296,18 @@ func genBindVarSql(sour interface{}, args *[]interface{}) *[]string {
 		val, struF := v.Field(i), v.Type().Field(i)
 		dbCol := struF.Tag.Get(TagDB)
 		if isValidAssignment(val, dbCol) {
+			operator := struF.Tag.Get(TagOperator)
+			if operator == "" {
+				operator = "="
+			}
 			if args != nil {
 				*args = append(*args, val)
 			}
 			fmtStr := ""
 			if strings.Contains(struF.Type.String(), "uuid.UUID") {
-				fmtStr = "%s = UUID_TO_BIN(?)"
+				fmtStr = "%s " + operator + " UUID_TO_BIN(?)"
 			} else {
-				fmtStr = "%s = ?"
+				fmtStr = "%s " + operator + " ?"
 			}
 			assigns = append(assigns, fmt.Sprintf(fmtStr, dbCol))
 		}
@@ -512,10 +316,7 @@ func genBindVarSql(sour interface{}, args *[]interface{}) *[]string {
 	return &assigns
 }
 
-//----------------------------------------------------------------
-// Named
-//----------------------------------------------------------------
-func genNamedSql(sour interface{}, args *map[string]interface{}) *[]string {
+func genConditionsNamed(sour interface{}, args *map[string]interface{}) *[]string {
 	assigns, v := []string{}, reflect.ValueOf(sour)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
@@ -526,14 +327,18 @@ func genNamedSql(sour interface{}, args *map[string]interface{}) *[]string {
 		val, struF := v.Field(i), v.Type().Field(i)
 		dbCol := struF.Tag.Get(TagDB)
 		if isValidAssignment(val, dbCol) {
+			operator := struF.Tag.Get(TagOperator)
+			if operator == "" {
+				operator = "="
+			}
 			if args != nil {
 				(*args)[dbCol] = val
 			}
 			fmtStr := ""
 			if strings.Contains(struF.Type.String(), "uuid.UUID") {
-				fmtStr = "%s = UUID_TO_BIN(:%s)"
+				fmtStr = "%s " + operator + " UUID_TO_BIN(:%s)"
 			} else {
-				fmtStr = "%s = :%s"
+				fmtStr = "%s " + operator + " :%s"
 			}
 			assigns = append(assigns, fmt.Sprintf(fmtStr, dbCol, dbCol))
 		}
@@ -551,16 +356,4 @@ func isValidAssignment(v reflect.Value, dbCol string) bool {
 		return true
 	}
 	return false
-}
-
-//----------------------------------------------------------------
-// Misc
-//----------------------------------------------------------------
-func IsSlice(t interface{}) bool {
-	switch reflect.TypeOf(t).Kind() {
-	case reflect.Slice:
-		return true
-	default:
-		return false
-	}
 }

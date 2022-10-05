@@ -1,0 +1,155 @@
+package model
+
+const (
+	TagAttach = "attach"
+)
+
+//================================================================
+//
+//================================================================
+func attach(dest, sour interface{}) {
+	dv := reflect.ValueOf(dest)
+	for dv.Kind() == reflect.Ptr {
+		dv = dv.Elem()
+	}
+
+	for i := 0; i < dv.NumField(); i += 1 {
+		fVal, fStru := dv.Field(i), dv.Type().Field(i)
+		if names, ok := fStru.Tag.Lookup(TagDive); ok {
+			if names != "" && names != "-" {
+				if _, ok := findField(sour, strings.Split(names, ".")); ok {
+					if fVal.IsNil() {
+						typ := fStru.Type
+						for typ.Kind() == reflect.Ptr {
+							typ = typ.Elem()
+						}
+						fVal.Set(reflect.New(typ))
+					}
+
+					attach(fVal.Interface(), sour)
+				}
+			}
+		} else {
+			if names, ok := fStru.Tag.Lookup(TagAttach); ok {
+				if sfv, ok := findField(sour, strings.Split(names, ".")); ok {
+					assignValue(fVal, sfv)
+				}
+			}
+		}
+	}
+}
+
+func assignValue(dv, sv reflect.Value) {
+	// TODO:
+	sourType, destType := sv.Type().String(), dv.Type().String()
+	// fmt.Println("sourType:", sourType, "CanAddr:", sv.CanAddr(), "destType:", destType)
+	switch sourType {
+	case "time.Time":
+		switch destType {
+		case "string":
+			dv.Set(reflect.ValueOf(sv.Interface().(time.Time).Format(time.RFC3339)))
+		case "*string":
+			t := sv.Interface().(time.Time).Format(time.RFC3339)
+			dv.Set(reflect.ValueOf(&t))
+		case "*time.Time":
+			dv.Set(sv.Addr())
+		}
+	//case "uuid.UUID":
+	//	switch destType {
+	//	case "string":
+	//		dv.Set(reflect.ValueOf(sv.Interface().(uuid.UUID).String()))
+	//	}
+	case "string":
+		switch destType {
+		case "string":
+			dv.Set(reflect.ValueOf(sv.Interface().(string)))
+		case "*string":
+			t := sv.Interface().(string)
+			dv.Set(reflect.ValueOf(&t))
+		}
+	default:
+		if strings.HasPrefix(destType, "*") {
+			dv.Set(sv.Addr())
+		} else {
+			dv.Set(sv)
+		}
+	}
+	// TODO:
+}
+
+func findField(sour interface{}, fieldNames []string) (reflect.Value, bool) {
+	v := reflect.ValueOf(sour)
+	for v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	var rstV reflect.Value
+	for i := range fieldNames {
+		rstV = v.FieldByName(fieldNames[i])
+		if !rstV.IsValid() || (rstV.Kind() == reflect.Ptr && rstV.IsZero()) {
+			return reflect.Value{}, false
+		}
+		for rstV.Kind() == reflect.Ptr {
+			rstV = rstV.Elem()
+		}
+		v = rstV
+	}
+
+	return rstV, true
+}
+
+//================================================================
+// ResultSet
+//================================================================
+type ResultSet struct {
+	Result       interface{}
+	abstractType reflect.Type
+}
+
+func NewResultSet(r interface{}) *ResultSet {
+	return &ResultSet{Result: r, abstractType: nil}
+}
+
+func (rs *ResultSet) AppliedBy(abs interface{}) *ResultSet {
+	v := reflect.ValueOf(abs)
+	for v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	rs.abstractType = v.Type()
+	return rs
+}
+
+func (rs *ResultSet) GetRow() interface{} {
+	var row interface{}
+
+	if reflect.TypeOf(rs.Result).Kind() == reflect.Slice {
+		row = reflect.ValueOf(rs.Result).Index(0).Interface()
+	} else {
+		row = rs.Result
+	}
+
+	absRow := reflect.New(rs.abstractType).Interface()
+	attach(absRow, row)
+	return absRow
+}
+
+func (rs *ResultSet) GetRows() []interface{} {
+	var absRows []interface{}
+
+	if reflect.TypeOf(rs.Result).Kind() == reflect.Slice {
+		v := reflect.ValueOf(rs.Result)
+		length := v.Len()
+		absRows = make([]interface{}, length)
+		for i := 0; i < length; i += 1 {
+			absRows[i] = reflect.New(rs.abstractType).Interface()
+			attach(absRows[i], v.Index(i).Interface())
+		}
+	} else {
+		absRows = make([]interface{}, 1)
+		absRows[0] = reflect.New(rs.abstractType).Interface()
+		attach(absRows[0], rs.Result)
+	}
+
+	return absRows
+}
