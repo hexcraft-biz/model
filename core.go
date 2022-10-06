@@ -295,25 +295,29 @@ func genConditionsVar(sour interface{}, args *[]interface{}) *[]string {
 	length := v.NumField()
 	for i := 0; i < length; i += 1 {
 		val, struF := v.Field(i), v.Type().Field(i)
-		dbCol, dbVal := struF.Tag.Get(TagCol), struF.Tag.Get(TagDB)
-		if dbCol == "" {
-			dbCol = dbVal
-		}
-		if isValidAssignment(val, dbCol) {
-			operator := struF.Tag.Get(TagOperator)
-			if operator == "" {
-				operator = "="
+		if _, ok := struF.Tag.Lookup(TagDive); ok {
+			genConditionsVar(val.Interface(), args)
+		} else {
+			dbCol, dbVal := struF.Tag.Get(TagCol), struF.Tag.Get(TagDB)
+			if dbCol == "" {
+				dbCol = dbVal
 			}
-			if args != nil {
-				*args = append(*args, val)
+			if isValidAssignment(val, dbCol) {
+				operator := struF.Tag.Get(TagOperator)
+				if operator == "" {
+					operator = "="
+				}
+				if args != nil {
+					*args = append(*args, val)
+				}
+				fmtStr := ""
+				if strings.Contains(struF.Type.String(), "uuid.UUID") {
+					fmtStr = "%s " + operator + " UUID_TO_BIN(?)"
+				} else {
+					fmtStr = "%s " + operator + " ?"
+				}
+				assigns = append(assigns, fmt.Sprintf(fmtStr, dbCol))
 			}
-			fmtStr := ""
-			if strings.Contains(struF.Type.String(), "uuid.UUID") {
-				fmtStr = "%s " + operator + " UUID_TO_BIN(?)"
-			} else {
-				fmtStr = "%s " + operator + " ?"
-			}
-			assigns = append(assigns, fmt.Sprintf(fmtStr, dbCol))
 		}
 	}
 
@@ -329,25 +333,29 @@ func genConditionsNamed(sour interface{}, args *map[string]interface{}) *[]strin
 	length := v.NumField()
 	for i := 0; i < length; i += 1 {
 		val, struF := v.Field(i), v.Type().Field(i)
-		dbCol, dbVal := struF.Tag.Get(TagCol), struF.Tag.Get(TagDB)
-		if dbCol == "" {
-			dbCol = dbVal
-		}
-		if isValidAssignment(val, dbCol) {
-			operator := struF.Tag.Get(TagOperator)
-			if operator == "" {
-				operator = "="
+		if _, ok := struF.Tag.Lookup(TagDive); ok {
+			genConditionsNamed(val.Interface(), args)
+		} else {
+			dbCol, dbVal := struF.Tag.Get(TagCol), struF.Tag.Get(TagDB)
+			if dbCol == "" {
+				dbCol = dbVal
 			}
-			if args != nil {
-				(*args)[dbCol] = val
+			if isValidAssignment(val, dbCol) {
+				operator := struF.Tag.Get(TagOperator)
+				if operator == "" {
+					operator = "="
+				}
+				if args != nil {
+					(*args)[dbCol] = val
+				}
+				fmtStr := ""
+				if strings.Contains(struF.Type.String(), "uuid.UUID") {
+					fmtStr = "%s " + operator + " UUID_TO_BIN(:%s)"
+				} else {
+					fmtStr = "%s " + operator + " :%s"
+				}
+				assigns = append(assigns, fmt.Sprintf(fmtStr, dbCol, dbVal))
 			}
-			fmtStr := ""
-			if strings.Contains(struF.Type.String(), "uuid.UUID") {
-				fmtStr = "%s " + operator + " UUID_TO_BIN(:%s)"
-			} else {
-				fmtStr = "%s " + operator + " :%s"
-			}
-			assigns = append(assigns, fmt.Sprintf(fmtStr, dbCol, dbVal))
 		}
 	}
 
