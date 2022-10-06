@@ -46,8 +46,8 @@ func (pt *PrototypeTime) Init() {
 }
 
 type Prototype struct {
-	ID *uuid.UUID `db:"id" json:"id"`
-	PrototypeTime
+	ID            *uuid.UUID `db:"id" json:"id"`
+	PrototypeTime `dive:"-"`
 }
 
 func (p *Prototype) Init() {
@@ -99,18 +99,19 @@ func (e *Engine) Insert(assignments interface{}) (sql.Result, error) {
 }
 
 func (e *Engine) Has(conds interface{}) (bool, error) {
-	flag, args := false, []interface{}{}
-	conditions := strings.Join(*(genConditionsVar(conds, &args)), " AND ")
-	q := `SELECT EXISTS(SELECT 1 FROM ` + e.TblName + ` WHERE ` + conditions + `);`
+	flag, placeholders, args := false, []string{}, []interface{}{}
+	genConditionsVar(conds, &placeholders, &args)
+	q := `SELECT EXISTS(SELECT 1 FROM ` + e.TblName + ` WHERE ` + strings.Join(placeholders, " AND ") + `);`
 	err := e.Get(&flag, q, args...)
 	return flag, err
 }
 
 func (e *Engine) FetchRows(dest, conds interface{}, qp QueryParametersInterface, paginate bool) error {
-	args, conditions, hasPreCondition := []interface{}{}, "", false
+	placeholders, args, conditions, hasPreCondition := []string{}, []interface{}{}, "", false
 
 	if conds != nil && !reflect.ValueOf(conds).IsNil() {
-		conditions = ` ` + strings.Join(*(genConditionsVar(conds, &args)), " AND ")
+		genConditionsVar(conds, &placeholders, &args)
+		conditions = ` ` + strings.Join(placeholders, " AND ")
 		hasPreCondition = true
 	}
 
@@ -119,13 +120,12 @@ func (e *Engine) FetchRows(dest, conds interface{}, qp QueryParametersInterface,
 }
 
 func (e *Engine) FetchRow(dest, conds interface{}) error {
-	args := []interface{}{}
-	conditions := strings.Join(*(genConditionsVar(conds, &args)), " AND ")
-	q := `SELECT * FROM ` + e.TblName + ` WHERE ` + conditions + `;`
+	placeholders, args := []string{}, []interface{}{}
+	genConditionsVar(conds, &placeholders, &args)
+	q := `SELECT * FROM ` + e.TblName + ` WHERE ` + strings.Join(placeholders, " AND ") + `;`
 	return e.Get(dest, q, conds)
 }
 
-// TODO: to be fixed
 func (e *Engine) FetchByKey(dest, key interface{}) error {
 	q := ""
 	if _, ok := key.(uuid.UUID); ok {
@@ -137,18 +137,18 @@ func (e *Engine) FetchByKey(dest, key interface{}) error {
 	return e.Get(dest, q, key)
 }
 
-//	TODO: bug happended when SET col = 'bb' WHERE col = 'aa';
 func (e *Engine) Update(conds, assignments interface{}) (sql.Result, error) {
-	args := map[string]interface{}{}
-	assigns := strings.Join(*(genConditionsNamed(assignments, &args)), ", ")
-	conditions := strings.Join(*(genConditionsNamed(conds, &args)), " AND ")
-	q := `UPDATE ` + e.TblName + ` SET ` + assigns + ` WHERE ` + conditions + `;`
+	phAssigns, phConditions, args := []string{}, []string{}, map[string]interface{}{}
+	genConditionsNamed(assignments, &phAssigns, &args)
+	genConditionsNamed(conds, &phConditions, &args)
+	q := `UPDATE ` + e.TblName + ` SET ` + strings.Join(phAssigns, ", ") + ` WHERE ` + strings.Join(phConditions, " AND ") + `;`
 	return e.NamedExec(q, args)
 }
 
 func (e *Engine) Delete(conds interface{}) (sql.Result, error) {
-	conditions := strings.Join(*(genConditionsNamed(conds, nil)), " AND ")
-	q := `DELETE FROM ` + e.TblName + ` WHERE ` + conditions + `;`
+	placeholders := []string{}
+	genConditionsNamed(conds, &placeholders, nil)
+	q := `DELETE FROM ` + e.TblName + ` WHERE ` + strings.Join(placeholders, " AND ") + `;`
 	return e.NamedExec(q, conds)
 }
 
@@ -186,9 +186,9 @@ func (qp *QueryParameters) GenSearchCondition(args *[]interface{}, hasPreConditi
 		}
 
 		if hasPreCondition {
-			conditions = ` ` + strings.Join(qp.SearchCols, " OR ")
-		} else {
 			conditions = ` AND (` + strings.Join(qp.SearchCols, " OR ") + `)`
+		} else {
+			conditions = ` ` + strings.Join(qp.SearchCols, " OR ")
 		}
 	}
 
@@ -273,7 +273,9 @@ func genInsertAssignments(assignments interface{}, fields, placeholders *[]strin
 
 		if _, ok := struF.Tag.Lookup(TagDive); ok {
 			genInsertAssignments(val.Interface(), fields, placeholders)
-		} else if dbCol := struF.Tag.Get(TagDB); dbCol != "" && dbCol != "-" {
+		}
+
+		if dbCol := struF.Tag.Get(TagDB); dbCol != "" && dbCol != "-" {
 			fmtStr := ""
 			*fields = append(*fields, fmt.Sprintf("%s", dbCol))
 			if strings.Contains(val.Type().String(), "uuid.UUID") {
@@ -286,8 +288,8 @@ func genInsertAssignments(assignments interface{}, fields, placeholders *[]strin
 	}
 }
 
-func genConditionsVar(sour interface{}, args *[]interface{}) *[]string {
-	assigns, v := []string{}, reflect.ValueOf(sour)
+func genConditionsVar(sour interface{}, placeholders *[]string, args *[]interface{}) {
+	v := reflect.ValueOf(sour)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
 	}
@@ -296,36 +298,32 @@ func genConditionsVar(sour interface{}, args *[]interface{}) *[]string {
 	for i := 0; i < length; i += 1 {
 		val, struF := v.Field(i), v.Type().Field(i)
 		if _, ok := struF.Tag.Lookup(TagDive); ok {
-			genConditionsVar(val.Interface(), args)
-		} else {
-			dbCol, dbVal := struF.Tag.Get(TagCol), struF.Tag.Get(TagDB)
-			if dbCol == "" {
-				dbCol = dbVal
+			genConditionsVar(val.Interface(), placeholders, args)
+		}
+
+		dbCol, dbVal := struF.Tag.Get(TagCol), struF.Tag.Get(TagDB)
+		if dbCol == "" {
+			dbCol = dbVal
+		}
+		if isValidAssignment(val, dbCol) {
+			operator := struF.Tag.Get(TagOperator)
+			if operator == "" {
+				operator = "="
 			}
-			if isValidAssignment(val, dbCol) {
-				operator := struF.Tag.Get(TagOperator)
-				if operator == "" {
-					operator = "="
-				}
-				if args != nil {
-					*args = append(*args, val)
-				}
-				fmtStr := ""
-				if strings.Contains(struF.Type.String(), "uuid.UUID") {
-					fmtStr = "%s " + operator + " UUID_TO_BIN(?)"
-				} else {
-					fmtStr = "%s " + operator + " ?"
-				}
-				assigns = append(assigns, fmt.Sprintf(fmtStr, dbCol))
+			*args = append(*args, val)
+			fmtStr := ""
+			if strings.Contains(struF.Type.String(), "uuid.UUID") {
+				fmtStr = "%s " + operator + " UUID_TO_BIN(?)"
+			} else {
+				fmtStr = "%s " + operator + " ?"
 			}
+			*placeholders = append(*placeholders, fmt.Sprintf(fmtStr, dbCol))
 		}
 	}
-
-	return &assigns
 }
 
-func genConditionsNamed(sour interface{}, args *map[string]interface{}) *[]string {
-	assigns, v := []string{}, reflect.ValueOf(sour)
+func genConditionsNamed(sour interface{}, placeholders *[]string, args *map[string]interface{}) {
+	v := reflect.ValueOf(sour)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
 	}
@@ -334,32 +332,30 @@ func genConditionsNamed(sour interface{}, args *map[string]interface{}) *[]strin
 	for i := 0; i < length; i += 1 {
 		val, struF := v.Field(i), v.Type().Field(i)
 		if _, ok := struF.Tag.Lookup(TagDive); ok {
-			genConditionsNamed(val.Interface(), args)
-		} else {
-			dbCol, dbVal := struF.Tag.Get(TagCol), struF.Tag.Get(TagDB)
-			if dbCol == "" {
-				dbCol = dbVal
+			genConditionsNamed(val.Interface(), placeholders, args)
+		}
+
+		dbCol, dbVal := struF.Tag.Get(TagCol), struF.Tag.Get(TagDB)
+		if dbCol == "" {
+			dbCol = dbVal
+		}
+		if isValidAssignment(val, dbCol) {
+			operator := struF.Tag.Get(TagOperator)
+			if operator == "" {
+				operator = "="
 			}
-			if isValidAssignment(val, dbCol) {
-				operator := struF.Tag.Get(TagOperator)
-				if operator == "" {
-					operator = "="
-				}
-				if args != nil {
-					(*args)[dbCol] = val
-				}
-				fmtStr := ""
-				if strings.Contains(struF.Type.String(), "uuid.UUID") {
-					fmtStr = "%s " + operator + " UUID_TO_BIN(:%s)"
-				} else {
-					fmtStr = "%s " + operator + " :%s"
-				}
-				assigns = append(assigns, fmt.Sprintf(fmtStr, dbCol, dbVal))
+			if args != nil {
+				(*args)[dbCol] = val
 			}
+			fmtStr := ""
+			if strings.Contains(struF.Type.String(), "uuid.UUID") {
+				fmtStr = "%s " + operator + " UUID_TO_BIN(:%s)"
+			} else {
+				fmtStr = "%s " + operator + " :%s"
+			}
+			*placeholders = append(*placeholders, fmt.Sprintf(fmtStr, dbCol, dbVal))
 		}
 	}
-
-	return &assigns
 }
 
 func isValidAssignment(v reflect.Value, dbCol string) bool {
