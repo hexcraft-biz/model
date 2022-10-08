@@ -264,10 +264,7 @@ func genInsertAssignments(assignments interface{}, fields, placeholders *[]strin
 	length := v.NumField()
 	for i := 0; i < length; i++ {
 		val, struF := v.Field(i), v.Type().Field(i)
-		if val.Kind() == reflect.Ptr {
-			if val.IsNil() {
-				continue
-			}
+		for val.Kind() == reflect.Ptr {
 			val = val.Elem()
 		}
 
@@ -297,6 +294,10 @@ func genConditionsVar(sour interface{}, placeholders *[]string, args *[]interfac
 	length := v.NumField()
 	for i := 0; i < length; i += 1 {
 		val, struF := v.Field(i), v.Type().Field(i)
+		for val.Kind() == reflect.Ptr {
+			val = val.Elem()
+		}
+
 		if _, ok := struF.Tag.Lookup(TagDive); ok {
 			genConditionsVar(val.Interface(), placeholders, args)
 		}
@@ -331,6 +332,10 @@ func genConditionsNamed(sour interface{}, placeholders *[]string, args *map[stri
 	length := v.NumField()
 	for i := 0; i < length; i += 1 {
 		val, struF := v.Field(i), v.Type().Field(i)
+		for val.Kind() == reflect.Ptr {
+			val = val.Elem()
+		}
+
 		if _, ok := struF.Tag.Lookup(TagDive); ok {
 			genConditionsNamed(val.Interface(), placeholders, args)
 		}

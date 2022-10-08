@@ -57,8 +57,8 @@ type Row struct {
 }
 
 type Assignments struct {
-	Name  string `dbcol:"name" db:"n_name"`
-	Phone string `dbcol:"phone" db:"n_phone"`
+	Name  **string `dbcol:"name" db:"n_name"`
+	Phone string   `dbcol:"phone" db:"n_phone"`
 }
 
 type QPTest struct {
@@ -71,7 +71,9 @@ type QPTest struct {
 func TestGen(t *testing.T) {
 	r := &Row{Name: "Boss", Phone: "0987654321"}
 	r.Init()
-	assignments := &Assignments{Name: "NAME", Phone: "PHONE"}
+	name := "John"
+	ptrName := &name
+	assignments := &Assignments{Name: &ptrName, Phone: "PHONE"}
 	qp := &QPTest{
 		QueryParameters: &QueryParameters{
 			SearchQuery: "term",
@@ -104,7 +106,7 @@ func TestGen(t *testing.T) {
 	fmt.Println("--------")
 
 	//
-	q, argv = TFetchRows(qp, qp, true)
+	q, argv = TFetchRows(assignments, qp, true)
 	fmt.Println("[FetchRows]:", q)
 	for _, v := range argv {
 		fmt.Println(v)
