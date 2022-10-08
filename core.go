@@ -272,7 +272,7 @@ func genInsertAssignments(assignments interface{}, fields, placeholders *[]strin
 			genInsertAssignments(val.Interface(), fields, placeholders)
 		}
 
-		if dbCol := struF.Tag.Get(TagDB); dbCol != "" && dbCol != "-" {
+		if dbCol := struF.Tag.Get(TagDB); isValidAssignment(val, dbCol) {
 			fmtStr := ""
 			*fields = append(*fields, fmt.Sprintf("%s", dbCol))
 			if strings.Contains(val.Type().String(), "uuid.UUID") {
@@ -366,10 +366,7 @@ func genConditionsNamed(sour interface{}, placeholders *[]string, args *map[stri
 func isValidAssignment(v reflect.Value, dbCol string) bool {
 	if dbCol == "" || dbCol == "-" {
 		return false
-	} else if v.Kind() != reflect.Ptr {
-		return true
-	} else if v.Kind() == reflect.Ptr && !v.IsNil() {
-		return true
 	}
-	return false
+
+	return true
 }
