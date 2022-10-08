@@ -264,8 +264,11 @@ func genInsertAssignments(assignments interface{}, fields, placeholders *[]strin
 	length := v.NumField()
 	for i := 0; i < length; i++ {
 		val, struF := v.Field(i), v.Type().Field(i)
-		for val.Kind() == reflect.Ptr {
+		for val.Kind() == reflect.Ptr && !val.IsNil() {
 			val = val.Elem()
+		}
+		if val.Kind() == reflect.Ptr {
+			continue
 		}
 
 		if _, ok := struF.Tag.Lookup(TagDive); ok {
@@ -294,8 +297,11 @@ func genConditionsVar(sour interface{}, placeholders *[]string, args *[]interfac
 	length := v.NumField()
 	for i := 0; i < length; i += 1 {
 		val, struF := v.Field(i), v.Type().Field(i)
-		for val.Kind() == reflect.Ptr {
+		for val.Kind() == reflect.Ptr && !val.IsNil() {
 			val = val.Elem()
+		}
+		if val.Kind() == reflect.Ptr {
+			continue
 		}
 
 		if _, ok := struF.Tag.Lookup(TagDive); ok {
@@ -332,8 +338,11 @@ func genConditionsNamed(sour interface{}, placeholders *[]string, args *map[stri
 	length := v.NumField()
 	for i := 0; i < length; i += 1 {
 		val, struF := v.Field(i), v.Type().Field(i)
-		for val.Kind() == reflect.Ptr {
+		for val.Kind() == reflect.Ptr && !val.IsNil() {
 			val = val.Elem()
+		}
+		if val.Kind() == reflect.Ptr {
+			continue
 		}
 
 		if _, ok := struF.Tag.Lookup(TagDive); ok {
@@ -350,7 +359,7 @@ func genConditionsNamed(sour interface{}, placeholders *[]string, args *map[stri
 				operator = "="
 			}
 			if args != nil {
-				(*args)[dbCol] = val
+				(*args)[dbVal] = val
 			}
 			fmtStr := ""
 			if strings.Contains(struF.Type.String(), "uuid.UUID") {
