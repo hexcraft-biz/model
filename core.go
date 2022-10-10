@@ -71,6 +71,11 @@ func NewEngine(db *sqlx.DB, tblName string) *Engine {
 	}
 }
 
+type FetchArgumentsInterface interface {
+	FetchVarArguments(argv *[]interface{}, placeholders *[]string)
+	FetchNamedArguments(argv *map[string]interface{}, placeholders *[]string)
+}
+
 type EngineInterface interface {
 	NewRows() interface{}
 	NewRow() interface{}
