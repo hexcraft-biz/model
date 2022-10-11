@@ -19,16 +19,20 @@ func THas(conds interface{}) (string, []interface{}) {
 	return `SELECT EXISTS(SELECT 1 FROM t WHERE ` + strings.Join(placeholders, " AND ") + `);`, args
 }
 
-func TFetchRows(conds interface{}, qp QueryParametersInterface, paginate bool) (string, []interface{}) {
+func TFetchRows(conds interface{}, qp QueryParametersInterface) (string, []interface{}) {
 	placeholders, args, conditions, hasPreCondition := []string{}, []interface{}{}, "", false
 
 	if conds != nil && !reflect.ValueOf(conds).IsNil() {
 		genConditionsVar(conds, &placeholders, &args)
-		conditions = ` ` + strings.Join(placeholders, " AND ")
+		conditions = ` WHERE ` + strings.Join(placeholders, " AND ")
 		hasPreCondition = true
 	}
 
-	return `SELECT * FROM t WHERE` + conditions + qp.Build(&args, hasPreCondition, paginate) + `;`, args
+	if qp != nil {
+		conditions += qp.Build(&args, hasPreCondition)
+	}
+
+	return `SELECT * FROM t` + conditions + `;`, args
 }
 
 func TFetchRow(conds interface{}) (string, []interface{}) {
@@ -76,6 +80,7 @@ func TestGen(t *testing.T) {
 	assignments := &Assignments{Name: &ptrName, Phone: "PHONE"}
 	qp := &QPTest{
 		QueryParameters: &QueryParameters{
+			Paginate:    true,
 			SearchQuery: "term",
 			SearchCols:  []string{"title", "description"},
 			OrderBy:     "ctime DESC",
@@ -106,8 +111,15 @@ func TestGen(t *testing.T) {
 	fmt.Println("--------")
 
 	//
-	q, argv = TFetchRows(assignments, qp, true)
-	fmt.Println("[FetchRows]:", q)
+	q, argv = TFetchRows(assignments, qp)
+	fmt.Println("[FetchRows 1]:", q)
+	for _, v := range argv {
+		fmt.Println(v)
+	}
+	fmt.Println("--------")
+
+	q, argv = TFetchRows(nil, nil)
+	fmt.Println("[FetchRows 2]:", q)
 	for _, v := range argv {
 		fmt.Println(v)
 	}

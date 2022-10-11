@@ -84,7 +84,7 @@ type EngineInterface interface {
 	NewRow() interface{}
 	Insert(assignments interface{}) (sql.Result, error)
 	Has(conds interface{}) (bool, error)
-	FetchRows(dest, conds interface{}, qp QueryParametersInterface, paginate bool) error
+	FetchRows(dest, conds interface{}, qp QueryParametersInterface) error
 	FetchRow(dest, conds interface{}) error
 	FetchByKey(dest, key interface{}) error
 	Update(conds, assignments interface{}) (sql.Result, error)
@@ -114,16 +114,20 @@ func (e *Engine) Has(conds interface{}) (bool, error) {
 	return flag, err
 }
 
-func (e *Engine) FetchRows(dest, conds interface{}, qp QueryParametersInterface, paginate bool) error {
+func (e *Engine) FetchRows(dest, conds interface{}, qp QueryParametersInterface) error {
 	placeholders, args, conditions, hasPreCondition := []string{}, []interface{}{}, "", false
 
 	if conds != nil && !reflect.ValueOf(conds).IsNil() {
 		genConditionsVar(conds, &placeholders, &args)
-		conditions = ` ` + strings.Join(placeholders, " AND ")
+		conditions = ` WHERE ` + strings.Join(placeholders, " AND ")
 		hasPreCondition = true
 	}
 
-	q := `SELECT * FROM ` + e.TblName + ` WHERE` + conditions + qp.Build(&args, hasPreCondition, paginate) + `;`
+	if qp != nil {
+		conditions += qp.Build(&args, hasPreCondition)
+	}
+
+	q := `SELECT * FROM ` + e.TblName + conditions + `;`
 	return e.Select(&dest, q, args...)
 }
 
@@ -164,22 +168,23 @@ func (e *Engine) Delete(conds interface{}) (sql.Result, error) {
 // QueryParameters
 //----------------------------------------------------------------
 type QueryParametersInterface interface {
-	Build(args *[]interface{}, hasPreCondition, paginate bool) string
+	Build(args *[]interface{}, hasPreCondition bool) string
 	GenSearchCondition(args *[]interface{}, hasPreCondition bool) string
 	GenOrderBy() string
 	PaginationInterface
 }
 
 type QueryParameters struct {
+	Paginate    bool
 	SearchQuery string   `form:"q" binding:"omitempty"`
 	SearchCols  []string `form:"-" binding:"isdefault"`
 	OrderBy     string   `form:"-" binding:"isdefault"`
 	Pagination
 }
 
-func (qp *QueryParameters) Build(args *[]interface{}, hasPreCondition, paginate bool) string {
+func (qp *QueryParameters) Build(args *[]interface{}, hasPreCondition bool) string {
 	q := qp.GenSearchCondition(args, hasPreCondition) + qp.GenOrderBy()
-	if paginate {
+	if qp.Paginate {
 		q += qp.Pagination.ToString(args)
 	}
 	return q
