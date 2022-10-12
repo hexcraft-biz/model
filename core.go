@@ -3,7 +3,6 @@ package model
 import (
 	"database/sql"
 	"fmt"
-	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/hexcraft-biz/misc/xuuid"
 	"github.com/jmoiron/sqlx"
@@ -174,7 +173,7 @@ type QueryParameters struct {
 func (qp *QueryParameters) Build(args *[]interface{}, hasPreCondition bool) string {
 	q := qp.GenSearchCondition(args, hasPreCondition) + qp.GenOrderBy()
 	if qp.Paginate {
-		q += qp.Pagination.ToString(args)
+		q += qp.Pagination.Validate().ToString(args)
 	}
 	return q
 }
@@ -212,7 +211,7 @@ const (
 	PaginationDefaultOffset = 0
 	PaginationDefaultLength = 16
 	PaginationMinLength     = 1
-	PaginationMaxLength     = 256
+	PaginationMaxLength     = 1024
 )
 
 type PaginationInterface interface {
@@ -220,38 +219,29 @@ type PaginationInterface interface {
 }
 
 type Pagination struct {
-	Offset uint64 `form:"pos" binding:"omitempty,validateOffset"`
-	Length uint64 `form:"len" binding:"omitempty,validateLength"`
+	Offset int64 `form:"pos" binding:"omitempty"`
+	Length int64 `form:"len" binding:"omitempty"`
+}
+
+func (p *Pagination) Validate() *Pagination {
+	if p.Offset < 0 {
+		p.Offset = PaginationDefaultOffset
+	}
+
+	if p.Length == 0 {
+		p.Length = PaginationDefaultLength
+	} else if p.Length < PaginationMinLength {
+		p.Length = PaginationMinLength
+	} else if p.Length > PaginationMaxLength {
+		p.Length = PaginationMaxLength
+	}
+
+	return p
 }
 
 func (p *Pagination) ToString(args *[]interface{}) string {
 	*args = append(*args, p.Offset, p.Length)
 	return ` LIMIT ?, ?`
-}
-
-func ValidatorPaginationOffset(fl validator.FieldLevel) bool {
-	v := fl.Field()
-	if _, ok := v.Interface().(uint64); !ok {
-		v.Set(reflect.ValueOf(0))
-	}
-	return true
-}
-
-func ValidatorPaginationLength(fl validator.FieldLevel) bool {
-	v := fl.Field()
-	if length, ok := v.Interface().(uint64); !ok {
-		v.Set(reflect.ValueOf(PaginationMinLength))
-	} else {
-		switch {
-		case length == 0:
-			v.Set(reflect.ValueOf(PaginationDefaultLength))
-		case length > 0 && length < PaginationMinLength:
-			v.Set(reflect.ValueOf(PaginationMinLength))
-		case length > PaginationMaxLength:
-			v.Set(reflect.ValueOf(PaginationMaxLength))
-		}
-	}
-	return true
 }
 
 //----------------------------------------------------------------
