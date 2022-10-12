@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/hexcraft-biz/misc/xtime"
 	"github.com/hexcraft-biz/misc/xuuid"
 	"github.com/jmoiron/sqlx"
 	"reflect"
@@ -34,15 +35,14 @@ type PrototypeInterface interface {
 }
 
 type PrototypeTime struct {
-	Ctime *time.Time `db:"ctime" json:"createdAt"`
-	Mtime *time.Time `db:"mtime" json:"modifiedAt"`
+	Ctime *xtime.Time `db:"ctime" json:"createdAt"`
+	Mtime *xtime.Time `db:"mtime" json:"modifiedAt"`
 }
 
 func (pt *PrototypeTime) Init() {
-	ctime := time.Now().UTC().Truncate(time.Second)
-	mtime := ctime
-	pt.Ctime = &ctime
-	pt.Mtime = &mtime
+	t := time.Now().UTC()
+	pt.Ctime = &xtime.Time{Time: t}
+	pt.Mtime = &xtime.Time{Time: t}
 }
 
 type Prototype struct {
