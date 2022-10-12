@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/hexcraft-biz/misc/xuuid"
 	"github.com/jmoiron/sqlx"
 	"reflect"
 	"strings"
@@ -46,12 +47,12 @@ func (pt *PrototypeTime) Init() {
 }
 
 type Prototype struct {
-	ID            *uuid.UUID `db:"id" json:"id"`
+	ID            *xuuid.UUID `db:"id" json:"id"`
 	PrototypeTime `dive:"-"`
 }
 
 func (p *Prototype) Init() {
-	id := uuid.New()
+	id := xuuid.UUID(uuid.New())
 	p.ID = &id
 	p.PrototypeTime.Init()
 }
@@ -86,7 +87,6 @@ type EngineInterface interface {
 	Has(conds interface{}) (bool, error)
 	FetchRows(dest, conds interface{}, qp QueryParametersInterface) error
 	FetchRow(dest, conds interface{}) error
-	FetchByKey(dest, key interface{}) error
 	Update(conds, assignments interface{}) (sql.Result, error)
 	Delete(conds interface{}) (sql.Result, error)
 }
@@ -138,20 +138,9 @@ func (e *Engine) FetchRow(dest, conds interface{}) error {
 	return e.Get(dest, q, conds)
 }
 
-func (e *Engine) FetchByKey(dest, key interface{}) error {
-	q := ""
-	if _, ok := key.(uuid.UUID); ok {
-		q = `SELECT * FROM ` + e.TblName + ` WHERE id = UUID_TO_BIN(?);`
-	} else {
-		q = `SELECT * FROM ` + e.TblName + ` WHERE identity = ?;`
-	}
-
-	return e.Get(dest, q, key)
-}
-
 func (e *Engine) Update(conds, assignments interface{}) (sql.Result, error) {
 	phAssigns, phConditions, args := []string{}, []string{}, map[string]interface{}{}
-	genConditionsNamed(assignments, &phAssigns, &args)
+	genUpdateAssignments(assignments, &phAssigns, &args)
 	genConditionsNamed(conds, &phConditions, &args)
 	q := `UPDATE ` + e.TblName + ` SET ` + strings.Join(phAssigns, ", ") + ` WHERE ` + strings.Join(phConditions, " AND ") + `;`
 	return e.NamedExec(q, args)
@@ -288,15 +277,36 @@ func genInsertAssignments(assignments interface{}, fields, placeholders *[]strin
 			genInsertAssignments(val.Interface(), fields, placeholders)
 		}
 
-		if dbCol := struF.Tag.Get(TagDB); isValidAssignment(val, dbCol) {
-			fmtStr := ""
-			*fields = append(*fields, fmt.Sprintf("%s", dbCol))
-			if strings.Contains(val.Type().String(), "uuid.UUID") {
-				fmtStr = "UUID_TO_BIN(:%s)"
-			} else {
-				fmtStr = ":%s"
-			}
-			*placeholders = append(*placeholders, fmt.Sprintf(fmtStr, dbCol))
+		if dbCol, _, _ := fetchDBTag(struF.Tag); isValidAssignment(val, dbCol) && !strings.Contains(dbCol, " ") {
+			*fields = append(*fields, dbCol)
+			*placeholders = append(*placeholders, fmt.Sprintf(":%s", dbCol))
+		}
+	}
+}
+
+func genUpdateAssignments(sour interface{}, placeholders *[]string, args *map[string]interface{}) {
+	v := reflect.ValueOf(sour)
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	length := v.NumField()
+	for i := 0; i < length; i += 1 {
+		val, struF := v.Field(i), v.Type().Field(i)
+		for val.Kind() == reflect.Ptr && !val.IsNil() {
+			val = val.Elem()
+		}
+		if val.Kind() == reflect.Ptr {
+			continue
+		}
+
+		if _, ok := struF.Tag.Lookup(TagDive); ok {
+			genConditionsNamed(val.Interface(), placeholders, args)
+		}
+
+		if dbCol, _, dbVal := fetchDBTag(struF.Tag); isValidAssignment(val, dbCol) && !strings.Contains(dbCol, " ") {
+			setNamedArg(args, dbVal, val)
+			*placeholders = append(*placeholders, fmt.Sprintf("%s = :%s", dbCol, dbVal))
 		}
 	}
 }
@@ -321,23 +331,23 @@ func genConditionsVar(sour interface{}, placeholders *[]string, args *[]interfac
 			genConditionsVar(val.Interface(), placeholders, args)
 		}
 
-		dbCol, dbVal := struF.Tag.Get(TagCol), struF.Tag.Get(TagDB)
-		if dbCol == "" {
-			dbCol = dbVal
-		}
+		dbCol, operator, _ := fetchDBTag(struF.Tag)
 		if isValidAssignment(val, dbCol) {
-			operator := struF.Tag.Get(TagOperator)
-			if operator == "" {
-				operator = "="
+			fmtStr, cols := "", strings.Split(dbCol, " ")
+			colsLen := len(cols)
+			switch colsLen {
+			case 1:
+				fmtStr = fmt.Sprintf("%s "+operator+" ?", cols[0])
+				*args = append(*args, val)
+			default:
+				fmtStrs := make([]string, colsLen)
+				for i := range cols {
+					fmtStrs[i] = fmt.Sprintf("%s "+operator+" ?", cols[i])
+					*args = append(*args, val)
+				}
+				fmtStr = "(" + strings.Join(fmtStrs, " OR ") + ")"
 			}
-			*args = append(*args, val)
-			fmtStr := ""
-			if strings.Contains(struF.Type.String(), "uuid.UUID") {
-				fmtStr = "%s " + operator + " UUID_TO_BIN(?)"
-			} else {
-				fmtStr = "%s " + operator + " ?"
-			}
-			*placeholders = append(*placeholders, fmt.Sprintf(fmtStr, dbCol))
+			*placeholders = append(*placeholders, fmtStr)
 		}
 	}
 }
@@ -362,27 +372,45 @@ func genConditionsNamed(sour interface{}, placeholders *[]string, args *map[stri
 			genConditionsNamed(val.Interface(), placeholders, args)
 		}
 
-		dbCol, dbVal := struF.Tag.Get(TagCol), struF.Tag.Get(TagDB)
-		if dbCol == "" {
-			dbCol = dbVal
-		}
+		dbCol, operator, dbVal := fetchDBTag(struF.Tag)
 		if isValidAssignment(val, dbCol) {
-			operator := struF.Tag.Get(TagOperator)
-			if operator == "" {
-				operator = "="
+			fmtStr, cols := "", strings.Split(dbCol, " ")
+			colsLen := len(cols)
+			switch colsLen {
+			case 1:
+				fmtStr = fmt.Sprintf("%s "+operator+" :%s", cols[0], dbVal)
+				setNamedArg(args, dbVal, val)
+			default:
+				fmtStrs := make([]string, colsLen)
+				for i := range cols {
+					fmtStrs[i] = fmt.Sprintf("%s "+operator+" :%s", cols[i], dbVal)
+					setNamedArg(args, dbVal, val)
+				}
+				fmtStr = "(" + strings.Join(fmtStrs, " OR ") + ")"
 			}
-			if args != nil {
-				(*args)[dbVal] = val
-			}
-			fmtStr := ""
-			if strings.Contains(struF.Type.String(), "uuid.UUID") {
-				fmtStr = "%s " + operator + " UUID_TO_BIN(:%s)"
-			} else {
-				fmtStr = "%s " + operator + " :%s"
-			}
-			*placeholders = append(*placeholders, fmt.Sprintf(fmtStr, dbCol, dbVal))
+			*placeholders = append(*placeholders, fmtStr)
 		}
 	}
+}
+
+func setNamedArg(args *map[string]interface{}, dbVal string, val reflect.Value) {
+	if args != nil {
+		(*args)[dbVal] = val
+	}
+}
+
+func fetchDBTag(tag reflect.StructTag) (string, string, string) {
+	col, val := tag.Get(TagCol), tag.Get(TagDB)
+	if col == "" {
+		col = val
+	}
+
+	operator := tag.Get(TagOperator)
+	if operator == "" {
+		operator = "="
+	}
+
+	return col, operator, val
 }
 
 func isValidAssignment(v reflect.Value, dbCol string) bool {

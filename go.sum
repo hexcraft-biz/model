@@ -12,6 +12,10 @@ github.com/go-sql-driver/mysql v1.5.0 h1:ozyZYNQW3x3HtqT1jira07DN2PArx2v7/mN66gG
 github.com/go-sql-driver/mysql v1.5.0/go.mod h1:DCzpHaOWr8IXmIStZouvnhqoel9Qv2LBy8hT2VhHyBg=
 github.com/google/uuid v1.3.0 h1:t6JiXgmwXMjEs8VusXIJk2BXHsn+wx8BZdTaoZ5fu7I=
 github.com/google/uuid v1.3.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
+github.com/hexcraft-biz/misc v0.1.14 h1:/ovtI8BDKtjMEIjvcEynGxgVkUwpdoYRhrsFyEvO7H0=
+github.com/hexcraft-biz/misc v0.1.14/go.mod h1:ZpskgUC3pdFII0MF38oiz5i5EUU1m2tUlfPZekKb+mA=
+github.com/hexcraft-biz/misc v0.1.15 h1:jDOWYXXYHAq0dGomgZxBTcNVuQ3+SGQbH4PaXXuaE6U=
+github.com/hexcraft-biz/misc v0.1.15/go.mod h1:ZpskgUC3pdFII0MF38oiz5i5EUU1m2tUlfPZekKb+mA=
 github.com/jmoiron/sqlx v1.3.4 h1:wv+0IJZfL5z0uZoUjlpKgHkgaFSYD+r9CfrXjEXsO7w=
 github.com/jmoiron/sqlx v1.3.4/go.mod h1:2BljVx/86SuTyjE+aPYlHCTNvZrnJXghYGpNiXLBMCQ=
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=

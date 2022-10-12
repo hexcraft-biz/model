@@ -2,6 +2,8 @@ package model
 
 import (
 	"fmt"
+	"github.com/google/uuid"
+	"github.com/hexcraft-biz/misc/xuuid"
 	"reflect"
 	"strings"
 	"testing"
@@ -43,7 +45,7 @@ func TFetchRow(conds interface{}) (string, []interface{}) {
 
 func TUpdate(conds, assignments interface{}) (string, map[string]interface{}) {
 	phAssigns, phConditions, args := []string{}, []string{}, map[string]interface{}{}
-	genConditionsNamed(assignments, &phAssigns, &args)
+	genUpdateAssignments(assignments, &phAssigns, &args)
 	genConditionsNamed(conds, &phConditions, &args)
 	return `UPDATE t SET ` + strings.Join(phAssigns, ", ") + ` WHERE ` + strings.Join(phConditions, " AND ") + `;`, args
 }
@@ -56,8 +58,9 @@ func TDelete(conds interface{}) string {
 
 type Row struct {
 	Prototype `dive:"-"`
-	Name      string `dbcol:"name" db:"name"`
-	Phone     string `dbcol:"phone" db:"phone"`
+	Name      string         `dbcol:"name" db:"name"`
+	Phone     string         `dbcol:"phone" db:"phone"`
+	Identity  xuuid.Wildcard `dbcol:"id name" db:"identity"`
 }
 
 type Assignments struct {
@@ -73,7 +76,7 @@ type QPTest struct {
 }
 
 func TestGen(t *testing.T) {
-	r := &Row{Name: "Boss", Phone: "0987654321"}
+	r := &Row{Name: "Boss", Phone: "0987654321", Identity: xuuid.Wildcard{Type: xuuid.WildcardTypeXUUID, Val: xuuid.UUID(uuid.New())}}
 	r.Init()
 	name := "John"
 	ptrName := &name
@@ -125,9 +128,24 @@ func TestGen(t *testing.T) {
 	}
 	fmt.Println("--------")
 
+	q, argv = TFetchRows(nil, qp)
+	fmt.Println("[FetchRows 3]:", q)
+	for _, v := range argv {
+		fmt.Println(v)
+	}
+	fmt.Println("--------")
+
+	qp.QueryParameters.SearchQuery = ""
+	q, argv = TFetchRows(nil, qp)
+	fmt.Println("[FetchRows 4]:", q)
+	for _, v := range argv {
+		fmt.Println(v)
+	}
+	fmt.Println("--------")
+
 	//
 	q, argv = TFetchRow(r)
-	fmt.Println("[FetchRow]:", q)
+	fmt.Println("[FetchRow 1]:", q)
 	for _, v := range argv {
 		fmt.Println(v)
 	}
