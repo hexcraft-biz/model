@@ -3,13 +3,11 @@ package model
 import (
 	"database/sql"
 	"fmt"
-	"github.com/google/uuid"
 	"github.com/hexcraft-biz/misc/xtime"
 	"github.com/hexcraft-biz/misc/xuuid"
 	"github.com/jmoiron/sqlx"
 	"reflect"
 	"strings"
-	"time"
 )
 
 const (
@@ -40,9 +38,9 @@ type PrototypeTime struct {
 }
 
 func (pt *PrototypeTime) Init() {
-	t := time.Now().UTC()
-	pt.Ctime = &xtime.Time{Time: t}
-	pt.Mtime = &xtime.Time{Time: t}
+	ct, mt := xtime.NowUTC(), xtime.NowUTC()
+	pt.Ctime = &ct
+	pt.Mtime = &mt
 }
 
 type Prototype struct {
@@ -51,7 +49,7 @@ type Prototype struct {
 }
 
 func (p *Prototype) Init() {
-	id := xuuid.UUID(uuid.New())
+	id := xuuid.New()
 	p.ID = &id
 	p.PrototypeTime.Init()
 }
