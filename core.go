@@ -246,139 +246,105 @@ func (p *Pagination) ToString(args *[]interface{}) string {
 // Misc
 //----------------------------------------------------------------
 func genInsertAssignments(assignments interface{}, fields, placeholders *[]string) {
-	v := reflect.ValueOf(assignments)
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-
-	length := v.NumField()
-	for i := 0; i < length; i++ {
-		val, struF := v.Field(i), v.Type().Field(i)
-		for val.Kind() == reflect.Ptr && !val.IsNil() {
-			val = val.Elem()
-		}
-		if val.Kind() == reflect.Ptr {
-			continue
-		}
-
-		if _, ok := struF.Tag.Lookup(TagDive); ok {
-			genInsertAssignments(val.Interface(), fields, placeholders)
-		}
-
-		if dbCol, _, _ := fetchDBTag(struF.Tag); isValidAssignment(val, dbCol) && !strings.Contains(dbCol, " ") {
-			*fields = append(*fields, dbCol)
-			*placeholders = append(*placeholders, fmt.Sprintf(":%s", dbCol))
+	if v, isNil := getValuePointsTo(reflect.ValueOf(assignments)); !isNil {
+		length := v.NumField()
+		for i := 0; i < length; i++ {
+			val, struF := v.Field(i), v.Type().Field(i)
+			if val, isNil := getValuePointsTo(val); !isNil {
+				if _, ok := struF.Tag.Lookup(TagDive); ok {
+					genInsertAssignments(val.Interface(), fields, placeholders)
+				} else if dbCol, _, _ := fetchDBTag(struF.Tag); isValidAssignment(val, dbCol) && !strings.Contains(dbCol, " ") {
+					*fields = append(*fields, dbCol)
+					*placeholders = append(*placeholders, fmt.Sprintf(":%s", dbCol))
+				}
+			}
 		}
 	}
 }
 
 func genUpdateAssignments(sour interface{}, placeholders *[]string, args *map[string]interface{}) {
-	v := reflect.ValueOf(sour)
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-
-	length := v.NumField()
-	for i := 0; i < length; i += 1 {
-		val, struF := v.Field(i), v.Type().Field(i)
-		for val.Kind() == reflect.Ptr && !val.IsNil() {
-			val = val.Elem()
-		}
-		if val.Kind() == reflect.Ptr {
-			continue
-		}
-
-		if _, ok := struF.Tag.Lookup(TagDive); ok {
-			genConditionsNamed(val.Interface(), placeholders, args)
-		}
-
-		if dbCol, _, dbVal := fetchDBTag(struF.Tag); isValidAssignment(val, dbCol) && !strings.Contains(dbCol, " ") {
-			setNamedArg(args, dbVal, val)
-			*placeholders = append(*placeholders, fmt.Sprintf("%s = :%s", dbCol, dbVal))
+	if v, isNil := getValuePointsTo(reflect.ValueOf(sour)); !isNil {
+		length := v.NumField()
+		for i := 0; i < length; i += 1 {
+			val, struF := v.Field(i), v.Type().Field(i)
+			if val, isNil := getValuePointsTo(val); !isNil {
+				if _, ok := struF.Tag.Lookup(TagDive); ok {
+					genConditionsNamed(val.Interface(), placeholders, args)
+				} else if dbCol, _, dbVal := fetchDBTag(struF.Tag); isValidAssignment(val, dbCol) && !strings.Contains(dbCol, " ") {
+					setNamedArg(args, dbVal, val)
+					*placeholders = append(*placeholders, fmt.Sprintf("%s = :%s", dbCol, dbVal))
+				}
+			}
 		}
 	}
 }
 
 func genConditionsVar(sour interface{}, placeholders *[]string, args *[]interface{}) {
-	v := reflect.ValueOf(sour)
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-
-	length := v.NumField()
-	for i := 0; i < length; i += 1 {
-		val, struF := v.Field(i), v.Type().Field(i)
-		for val.Kind() == reflect.Ptr && !val.IsNil() {
-			val = val.Elem()
-		}
-		if val.Kind() == reflect.Ptr {
-			continue
-		}
-
-		if _, ok := struF.Tag.Lookup(TagDive); ok {
-			genConditionsVar(val.Interface(), placeholders, args)
-		}
-
-		dbCol, operator, _ := fetchDBTag(struF.Tag)
-		if isValidAssignment(val, dbCol) {
-			fmtStr, cols := "", strings.Split(dbCol, " ")
-			colsLen := len(cols)
-			switch colsLen {
-			case 1:
-				fmtStr = fmt.Sprintf("%s "+operator+" ?", cols[0])
-				*args = append(*args, val)
-			default:
-				fmtStrs := make([]string, colsLen)
-				for i := range cols {
-					fmtStrs[i] = fmt.Sprintf("%s "+operator+" ?", cols[i])
-					*args = append(*args, val)
+	if v, isNil := getValuePointsTo(reflect.ValueOf(sour)); !isNil {
+		length := v.NumField()
+		for i := 0; i < length; i += 1 {
+			val, struF := v.Field(i), v.Type().Field(i)
+			if val, isNil := getValuePointsTo(val); !isNil {
+				if _, ok := struF.Tag.Lookup(TagDive); ok {
+					genConditionsVar(val.Interface(), placeholders, args)
+				} else if dbCol, operator, _ := fetchDBTag(struF.Tag); isValidAssignment(val, dbCol) {
+					fmtStr, cols := "", strings.Split(dbCol, " ")
+					colsLen := len(cols)
+					switch colsLen {
+					case 1:
+						fmtStr = fmt.Sprintf("%s "+operator+" ?", cols[0])
+						*args = append(*args, val)
+					default:
+						fmtStrs := make([]string, colsLen)
+						for i := range cols {
+							fmtStrs[i] = fmt.Sprintf("%s "+operator+" ?", cols[i])
+							*args = append(*args, val)
+						}
+						fmtStr = "(" + strings.Join(fmtStrs, " OR ") + ")"
+					}
+					*placeholders = append(*placeholders, fmtStr)
 				}
-				fmtStr = "(" + strings.Join(fmtStrs, " OR ") + ")"
 			}
-			*placeholders = append(*placeholders, fmtStr)
 		}
 	}
 }
 
 func genConditionsNamed(sour interface{}, placeholders *[]string, args *map[string]interface{}) {
-	v := reflect.ValueOf(sour)
-	if v.Kind() == reflect.Ptr {
+	if v, isNil := getValuePointsTo(reflect.ValueOf(sour)); !isNil {
+		length := v.NumField()
+		for i := 0; i < length; i += 1 {
+			val, struF := v.Field(i), v.Type().Field(i)
+			if val, isNil := getValuePointsTo(val); !isNil {
+				if _, ok := struF.Tag.Lookup(TagDive); ok {
+					genConditionsNamed(val.Interface(), placeholders, args)
+				} else if dbCol, operator, dbVal := fetchDBTag(struF.Tag); isValidAssignment(val, dbCol) {
+					fmtStr, cols := "", strings.Split(dbCol, " ")
+					colsLen := len(cols)
+					switch colsLen {
+					case 1:
+						fmtStr = fmt.Sprintf("%s "+operator+" :%s", cols[0], dbVal)
+						setNamedArg(args, dbVal, val)
+					default:
+						fmtStrs := make([]string, colsLen)
+						for i := range cols {
+							fmtStrs[i] = fmt.Sprintf("%s "+operator+" :%s", cols[i], dbVal)
+							setNamedArg(args, dbVal, val)
+						}
+						fmtStr = "(" + strings.Join(fmtStrs, " OR ") + ")"
+					}
+					*placeholders = append(*placeholders, fmtStr)
+				}
+			}
+		}
+	}
+}
+
+func getValuePointsTo(v reflect.Value) (reflect.Value, bool) {
+	for v.Kind() == reflect.Ptr && !v.IsNil() {
 		v = v.Elem()
 	}
 
-	length := v.NumField()
-	for i := 0; i < length; i += 1 {
-		val, struF := v.Field(i), v.Type().Field(i)
-		for val.Kind() == reflect.Ptr && !val.IsNil() {
-			val = val.Elem()
-		}
-		if val.Kind() == reflect.Ptr {
-			continue
-		}
-
-		if _, ok := struF.Tag.Lookup(TagDive); ok {
-			genConditionsNamed(val.Interface(), placeholders, args)
-		}
-
-		dbCol, operator, dbVal := fetchDBTag(struF.Tag)
-		if isValidAssignment(val, dbCol) {
-			fmtStr, cols := "", strings.Split(dbCol, " ")
-			colsLen := len(cols)
-			switch colsLen {
-			case 1:
-				fmtStr = fmt.Sprintf("%s "+operator+" :%s", cols[0], dbVal)
-				setNamedArg(args, dbVal, val)
-			default:
-				fmtStrs := make([]string, colsLen)
-				for i := range cols {
-					fmtStrs[i] = fmt.Sprintf("%s "+operator+" :%s", cols[i], dbVal)
-					setNamedArg(args, dbVal, val)
-				}
-				fmtStr = "(" + strings.Join(fmtStrs, " OR ") + ")"
-			}
-			*placeholders = append(*placeholders, fmtStr)
-		}
-	}
+	return v, (v.Kind() == reflect.Ptr)
 }
 
 func setNamedArg(args *map[string]interface{}, dbVal string, val reflect.Value) {
