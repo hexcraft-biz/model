@@ -8,6 +8,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"reflect"
 	"strings"
+	"time"
 )
 
 const (
@@ -23,6 +24,11 @@ const (
 
 	MysqlIntMax  = 2147483647
 	MysqlUintMax = 4294967295
+)
+
+var (
+	MysqlDatetimeMin xtime.Time = xtime.Time{Time: time.Date(1000, 1, 1, 0, 0, 0, 0, time.UTC)}
+	MysqlDatetimeMax xtime.Time = xtime.Time{Time: time.Date(9999, 12, 31, 23, 59, 59, 999999999, time.UTC)}
 )
 
 //================================================================
