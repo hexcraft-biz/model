@@ -22,6 +22,8 @@ github.com/hexcraft-biz/misc v0.1.17 h1:U0WMQRzNUaOgOa8/o1rS8CTAlNm+zK6GJv1xChWt
 github.com/hexcraft-biz/misc v0.1.17/go.mod h1:ZpskgUC3pdFII0MF38oiz5i5EUU1m2tUlfPZekKb+mA=
 github.com/hexcraft-biz/misc v0.1.18 h1:t1QZW1HgHYrpDkn1AI6WhbKdOyPCybJRkFkeK8/B2Mo=
 github.com/hexcraft-biz/misc v0.1.18/go.mod h1:ZpskgUC3pdFII0MF38oiz5i5EUU1m2tUlfPZekKb+mA=
+github.com/hexcraft-biz/misc v0.1.19 h1:y2ZBCtC25M/C6IGxE5/7Mb59Pfml3tp1Xh51VjyYBmE=
+github.com/hexcraft-biz/misc v0.1.19/go.mod h1:ZpskgUC3pdFII0MF38oiz5i5EUU1m2tUlfPZekKb+mA=
 github.com/jmoiron/sqlx v1.3.4 h1:wv+0IJZfL5z0uZoUjlpKgHkgaFSYD+r9CfrXjEXsO7w=
 github.com/jmoiron/sqlx v1.3.4/go.mod h1:2BljVx/86SuTyjE+aPYlHCTNvZrnJXghYGpNiXLBMCQ=
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
