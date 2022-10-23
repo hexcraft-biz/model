@@ -44,9 +44,9 @@ type PrototypeTime struct {
 }
 
 func (pt *PrototypeTime) Init() {
-	ct, mt := xtime.NowUTC(), xtime.NowUTC()
+	ct := xtime.NowUTC()
 	pt.Ctime = &ct
-	pt.Mtime = &mt
+	pt.Mtime = &ct
 }
 
 type Prototype struct {
