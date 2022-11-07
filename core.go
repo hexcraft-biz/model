@@ -138,7 +138,7 @@ func (e *Engine) FetchRow(dest, conds interface{}) error {
 	placeholders, args := []string{}, []interface{}{}
 	genConditionsVar(conds, &placeholders, &args)
 	q := `SELECT * FROM ` + e.TblName + ` WHERE ` + strings.Join(placeholders, " AND ") + `;`
-	return e.Get(dest, q, conds)
+	return e.Get(dest, q, args...)
 }
 
 func (e *Engine) Update(conds, assignments interface{}) (sql.Result, error) {
