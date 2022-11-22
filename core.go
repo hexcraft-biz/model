@@ -27,8 +27,8 @@ const (
 )
 
 var (
-	MysqlDatetimeMin xtime.Time = xtime.Time{Time: time.Date(1000, 1, 1, 0, 0, 0, 0, time.UTC)}
-	MysqlDatetimeMax xtime.Time = xtime.Time{Time: time.Date(9999, 12, 31, 23, 59, 59, 999999999, time.UTC)}
+	MysqlDatetimeMin xtime.Time = xtime.Time(time.Date(1000, 1, 1, 0, 0, 0, 0, time.UTC))
+	MysqlDatetimeMax xtime.Time = xtime.Time(time.Date(9999, 12, 31, 23, 59, 59, 999999999, time.UTC))
 )
 
 //================================================================
@@ -299,12 +299,12 @@ func genConditionsVar(sour interface{}, placeholders *[]string, args *[]interfac
 					switch colsLen {
 					case 1:
 						fmtStr = fmt.Sprintf("%s "+operator+" ?", cols[0])
-						*args = append(*args, val)
+						*args = append(*args, val.Interface())
 					default:
 						fmtStrs := make([]string, colsLen)
 						for i := range cols {
 							fmtStrs[i] = fmt.Sprintf("%s "+operator+" ?", cols[i])
-							*args = append(*args, val)
+							*args = append(*args, val.Interface())
 						}
 						fmtStr = "(" + strings.Join(fmtStrs, " OR ") + ")"
 					}

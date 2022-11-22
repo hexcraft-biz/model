@@ -1,9 +1,12 @@
 package model
 
 import (
+	"encoding/json"
 	"fmt"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
 	"github.com/hexcraft-biz/misc/xuuid"
+	"github.com/jmoiron/sqlx"
 	"reflect"
 	"strings"
 	"testing"
@@ -75,90 +78,137 @@ type QPTest struct {
 	To     string `db:"expired_at" dbop:">="`
 }
 
-func TestGen(t *testing.T) {
-	r := &Row{Name: "Boss", Phone: "0987654321", Identity: xuuid.Wildcard{Type: xuuid.WildcardTypeXUUID, Val: xuuid.UUID(uuid.New())}}
-	r.Init()
-	name := "John"
-	ptrName := &name
-	assignments := &Assignments{Name: &ptrName, Phone: "PHONE"}
-	qp := &QPTest{
-		QueryParameters: &QueryParameters{
-			Paginate:    true,
-			SearchQuery: "term",
-			SearchCols:  []string{"title", "description"},
-			OrderBy:     "ctime DESC",
-			Pagination: Pagination{
-				Offset: 2,
-				Length: 97,
-			},
-		},
-		Status: "DRAFTING",
-		From:   "1970-01-01",
-		To:     "2038-12-20",
+//func TestGen(t *testing.T) {
+//	r := &Row{Name: "Boss", Phone: "0987654321", Identity: xuuid.Wildcard{Type: xuuid.WildcardTypeXUUID, Val: xuuid.UUID(uuid.New())}}
+//	r.Init()
+//	name := "John"
+//	ptrName := &name
+//	assignments := &Assignments{Name: &ptrName, Phone: "PHONE"}
+//	qp := &QPTest{
+//		QueryParameters: &QueryParameters{
+//			Paginate:    true,
+//			SearchQuery: "term",
+//			SearchCols:  []string{"title", "description"},
+//			OrderBy:     "ctime DESC",
+//			Pagination: Pagination{
+//				Offset: 2,
+//				Length: 97,
+//			},
+//		},
+//		Status: "DRAFTING",
+//		From:   "1970-01-01",
+//		To:     "2038-12-20",
+//	}
+//
+//	var argv []interface{}
+//	var argn map[string]interface{}
+//	var q string
+//
+//	//
+//	fmt.Println("[Insert]:", TInsert(r))
+//	fmt.Println("--------")
+//
+//	//
+//	q, argv = THas(r)
+//	fmt.Println("[Has]:", q)
+//	for _, v := range argv {
+//		fmt.Println(v)
+//	}
+//	fmt.Println("--------")
+//
+//	//
+//	q, argv = TFetchRows(assignments, qp)
+//	fmt.Println("[FetchRows 1]:", q)
+//	for _, v := range argv {
+//		fmt.Println(v)
+//	}
+//	fmt.Println("--------")
+//
+//	q, argv = TFetchRows(nil, nil)
+//	fmt.Println("[FetchRows 2]:", q)
+//	for _, v := range argv {
+//		fmt.Println(v)
+//	}
+//	fmt.Println("--------")
+//
+//	q, argv = TFetchRows(nil, qp)
+//	fmt.Println("[FetchRows 3]:", q)
+//	for _, v := range argv {
+//		fmt.Println(v)
+//	}
+//	fmt.Println("--------")
+//
+//	qp.QueryParameters.SearchQuery = ""
+//	q, argv = TFetchRows(nil, qp)
+//	fmt.Println("[FetchRows 4]:", q)
+//	for _, v := range argv {
+//		fmt.Println(v)
+//	}
+//	fmt.Println("--------")
+//
+//	//
+//	q, argv = TFetchRow(r)
+//	fmt.Println("[FetchRow 1]:", q)
+//	for _, v := range argv {
+//		fmt.Println(v)
+//	}
+//	fmt.Println("--------")
+//
+//	//
+//	q, argn = TUpdate(r, assignments)
+//	fmt.Println("[Update]:", q)
+//	for k, v := range argn {
+//		fmt.Println(k, "=>", v)
+//	}
+//	fmt.Println("--------")
+//
+//	//
+//	fmt.Println("[Delete]:", TDelete(r))
+//}
+
+//================================================================
+//
+//================================================================
+type ERewardTypes struct {
+	*Engine
+}
+
+func NewERewardTypes(db *sqlx.DB) *ERewardTypes {
+	return &ERewardTypes{
+		Engine: NewEngine(db, "reward_types"),
+	}
+}
+
+type RewardType struct {
+	Prototype          `dive:"-"`
+	Identity           string `db:"identity" json:"identity"`
+	IssueQuantity      int    `db:"issue_quantity" json:"issueQuantity"`
+	MaxAcquiredPerUser int    `db:"max_acquired_per_user" json:"maxAcquiredPerUser"`
+	HasCallback        bool   `db:"has_callback" json:"hasCallback"`
+	Title              string `db:"title" json:"title"`
+	Description        string `db:"description" json:"description"`
+}
+
+type CommonAnchor struct {
+	ID xuuid.UUID `uri:"id" binding:"required" db:"id"`
+}
+
+func TestFetch(t *testing.T) {
+	protocol := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?%s")
+	db, err := sqlx.Open("mysql", protocol)
+	if err != nil {
+		t.Fatal(err.Error())
 	}
 
-	var argv []interface{}
-	var argn map[string]interface{}
-	var q string
-
-	//
-	fmt.Println("[Insert]:", TInsert(r))
-	fmt.Println("--------")
-
-	//
-	q, argv = THas(r)
-	fmt.Println("[Has]:", q)
-	for _, v := range argv {
-		fmt.Println(v)
+	anchor := &CommonAnchor{
+		ID: xuuid.UUID(uuid.Must(uuid.Parse("5b080758-7ece-4be0-bf37-7f6da5fb1be6"))),
 	}
-	fmt.Println("--------")
-
-	//
-	q, argv = TFetchRows(assignments, qp)
-	fmt.Println("[FetchRows 1]:", q)
-	for _, v := range argv {
-		fmt.Println(v)
+	row := new(RewardType)
+	if err := NewERewardTypes(db).FetchRow(row, anchor); err != nil {
+		t.Fatal(err.Error())
+	} else if js, err := json.MarshalIndent(row, "", "\t"); err != nil {
+		t.Fatal(err.Error())
+	} else {
+		fmt.Println(string(js))
 	}
-	fmt.Println("--------")
-
-	q, argv = TFetchRows(nil, nil)
-	fmt.Println("[FetchRows 2]:", q)
-	for _, v := range argv {
-		fmt.Println(v)
-	}
-	fmt.Println("--------")
-
-	q, argv = TFetchRows(nil, qp)
-	fmt.Println("[FetchRows 3]:", q)
-	for _, v := range argv {
-		fmt.Println(v)
-	}
-	fmt.Println("--------")
-
-	qp.QueryParameters.SearchQuery = ""
-	q, argv = TFetchRows(nil, qp)
-	fmt.Println("[FetchRows 4]:", q)
-	for _, v := range argv {
-		fmt.Println(v)
-	}
-	fmt.Println("--------")
-
-	//
-	q, argv = TFetchRow(r)
-	fmt.Println("[FetchRow 1]:", q)
-	for _, v := range argv {
-		fmt.Println(v)
-	}
-	fmt.Println("--------")
-
-	//
-	q, argn = TUpdate(r, assignments)
-	fmt.Println("[Update]:", q)
-	for k, v := range argn {
-		fmt.Println(k, "=>", v)
-	}
-	fmt.Println("--------")
-
-	//
-	fmt.Println("[Delete]:", TDelete(r))
 }
