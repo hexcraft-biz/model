@@ -31,9 +31,9 @@ var (
 	MysqlDatetimeMax xtime.Time = xtime.Time(time.Date(9999, 12, 31, 23, 59, 59, 999999999, time.UTC))
 )
 
-//================================================================
+// ================================================================
 // Prototype
-//================================================================
+// ================================================================
 type PrototypeInterface interface {
 	Init()
 }
@@ -60,9 +60,9 @@ func (p *Prototype) Init() {
 	p.PrototypeTime.Init()
 }
 
-//================================================================
+// ================================================================
 //
-//================================================================
+// ================================================================
 type Engine struct {
 	*sqlx.DB
 	TblName string
@@ -131,7 +131,7 @@ func (e *Engine) FetchRows(dest, conds interface{}, qp QueryParametersInterface)
 	}
 
 	q := `SELECT * FROM ` + e.TblName + conditions + `;`
-	return e.Select(&dest, q, args...)
+	return e.Select(dest, q, args...)
 }
 
 func (e *Engine) FetchRow(dest, conds interface{}) error {
@@ -156,9 +156,9 @@ func (e *Engine) Delete(conds interface{}) (sql.Result, error) {
 	return e.NamedExec(q, conds)
 }
 
-//----------------------------------------------------------------
+// ----------------------------------------------------------------
 // QueryParameters
-//----------------------------------------------------------------
+// ----------------------------------------------------------------
 type QueryParametersInterface interface {
 	Build(args *[]interface{}, hasPreCondition bool) string
 	GenSearchCondition(args *[]interface{}, hasPreCondition bool) string
@@ -208,9 +208,9 @@ func (qp *QueryParameters) GenOrderBy() string {
 	}
 }
 
-//----------------------------------------------------------------
+// ----------------------------------------------------------------
 // Pagination
-//----------------------------------------------------------------
+// ----------------------------------------------------------------
 const (
 	PaginationDefaultOffset = 0
 	PaginationDefaultLength = 16
@@ -248,9 +248,9 @@ func (p *Pagination) ToString(args *[]interface{}) string {
 	return ` LIMIT ?, ?`
 }
 
-//----------------------------------------------------------------
+// ----------------------------------------------------------------
 // Misc
-//----------------------------------------------------------------
+// ----------------------------------------------------------------
 func genInsertAssignments(assignments interface{}, fields, placeholders *[]string) {
 	if v, isNil := getValuePointsTo(reflect.ValueOf(assignments)); !isNil {
 		length := v.NumField()
@@ -355,7 +355,7 @@ func getValuePointsTo(v reflect.Value) (reflect.Value, bool) {
 
 func setNamedArg(args *map[string]interface{}, dbVal string, val reflect.Value) {
 	if args != nil {
-		(*args)[dbVal] = val
+		(*args)[dbVal] = val.Interface()
 	}
 }
 
