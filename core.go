@@ -168,9 +168,9 @@ type QueryParametersInterface interface {
 
 type QueryParameters struct {
 	Paginate    bool
-	SearchQuery string   `form:"q" binding:"omitempty"`
-	SearchCols  []string `form:"-" binding:"isdefault"`
-	OrderBy     string   `form:"-" binding:"isdefault"`
+	SearchQuery string `form:"q" binding:"omitempty"`
+	SearchCols  []string
+	OrderBy     string
 	Pagination
 }
 
