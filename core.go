@@ -362,8 +362,8 @@ func genConditionsNamed(sour interface{}, placeholders *[]string, args *map[stri
 }
 
 func getValuePointsTo(v reflect.Value) (reflect.Value, bool) {
-	if v.Kind() == reflect.Ptr && !v.IsNil() {
-		getValuePointsTo(v.Elem())
+	for v.Kind() == reflect.Ptr && !v.IsNil() {
+		v = v.Elem()
 	}
 
 	return v, (v.Kind() == reflect.Ptr)
