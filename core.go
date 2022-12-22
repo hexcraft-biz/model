@@ -118,24 +118,28 @@ func (e *Engine) Has(conds interface{}) (bool, error) {
 }
 
 func (e *Engine) FetchRows(dest, conds interface{}, qp QueryParametersInterface) error {
-	placeholders, args, conditions, hasPreCondition := []string{}, []interface{}{}, "", false
+	placeholders, args, conditions := []string{}, []interface{}{}, ""
+	hasPreCondition, hasConds := false, false
 
 	if conds != nil {
 		switch reflect.ValueOf(conds).Kind() {
 		case reflect.Ptr:
 			if !reflect.ValueOf(conds).IsNil() {
-				hasPreCondition = true
+				hasConds = true
 			}
 		case reflect.Struct:
-			hasPreCondition = true
+			hasConds = true
 		default:
 			return fmt.Errorf("Invalid condition input.")
 		}
 	}
 
-	if hasPreCondition {
+	if hasConds {
 		genConditionsVar(conds, &placeholders, &args)
-		conditions = ` WHERE ` + strings.Join(placeholders, " AND ")
+		if len(placeholders) > 0 {
+			hasPreCondition = true
+			conditions = ` WHERE ` + strings.Join(placeholders, " AND ")
+		}
 	}
 
 	if qp != nil {
@@ -358,8 +362,8 @@ func genConditionsNamed(sour interface{}, placeholders *[]string, args *map[stri
 }
 
 func getValuePointsTo(v reflect.Value) (reflect.Value, bool) {
-	for v.Kind() == reflect.Ptr && !v.IsNil() {
-		v = v.Elem()
+	if v.Kind() == reflect.Ptr && !v.IsNil() {
+		getValuePointsTo(v.Elem())
 	}
 
 	return v, (v.Kind() == reflect.Ptr)
