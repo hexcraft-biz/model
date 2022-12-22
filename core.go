@@ -120,15 +120,17 @@ func (e *Engine) Has(conds interface{}) (bool, error) {
 func (e *Engine) FetchRows(dest, conds interface{}, qp QueryParametersInterface) error {
 	placeholders, args, conditions, hasPreCondition := []string{}, []interface{}{}, "", false
 
-	switch reflect.ValueOf(conds).Kind() {
-	case reflect.Ptr:
-		if conds != nil && !reflect.ValueOf(conds).IsNil() {
+	if conds != nil {
+		switch reflect.ValueOf(conds).Kind() {
+		case reflect.Ptr:
+			if !reflect.ValueOf(conds).IsNil() {
+				hasPreCondition = true
+			}
+		case reflect.Struct:
 			hasPreCondition = true
+		default:
+			return fmt.Errorf("Invalid condition input.")
 		}
-	case reflect.Struct:
-		hasPreCondition = true
-	default:
-		return fmt.Errorf("Invalid condition input.")
 	}
 
 	if hasPreCondition {
