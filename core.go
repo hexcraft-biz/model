@@ -3,12 +3,13 @@ package model
 import (
 	"database/sql"
 	"fmt"
-	"github.com/hexcraft-biz/misc/xtime"
-	"github.com/hexcraft-biz/misc/xuuid"
-	"github.com/jmoiron/sqlx"
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/hexcraft-biz/misc/xtime"
+	"github.com/hexcraft-biz/misc/xuuid"
+	"github.com/jmoiron/sqlx"
 )
 
 const (
@@ -88,6 +89,7 @@ type EngineInterface interface {
 	NewRow() interface{}
 	Insert(assignments interface{}) (sql.Result, error)
 	Has(conds interface{}) (bool, error)
+	Count(conds interface{}) (int, error)
 	FetchRows(dest, conds interface{}, qp QueryParametersInterface) error
 	FetchRow(dest, conds interface{}) error
 	Update(conds, assignments interface{}) (sql.Result, error)
@@ -115,6 +117,36 @@ func (e *Engine) Has(conds interface{}) (bool, error) {
 	q := `SELECT EXISTS(SELECT 1 FROM ` + e.TblName + ` WHERE ` + strings.Join(placeholders, " AND ") + `);`
 	err := e.Get(&flag, q, args...)
 	return flag, err
+}
+
+func (e *Engine) Count(conds interface{}) (int, error) {
+	count, placeholders, args, conditions := 0, []string{}, []interface{}{}, ""
+	hasConds := false
+
+	if conds != nil {
+		switch reflect.ValueOf(conds).Kind() {
+		case reflect.Ptr:
+			if !reflect.ValueOf(conds).IsNil() {
+				hasConds = true
+			}
+		case reflect.Struct:
+			hasConds = true
+		default:
+			return count, fmt.Errorf("Invalid condition input.")
+		}
+	}
+
+	if hasConds {
+		genConditionsVar(conds, &placeholders, &args)
+		if len(placeholders) > 0 {
+			conditions = ` WHERE ` + strings.Join(placeholders, " AND ")
+		}
+	}
+
+	q := `SELECT COUNT(*) FROM ` + e.TblName + conditions + `;`
+	err := e.Get(&count, q, args...)
+
+	return count, err
 }
 
 func (e *Engine) FetchRows(dest, conds interface{}, qp QueryParametersInterface) error {
