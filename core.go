@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hexcraft-biz/misc/xtime"
-	"github.com/hexcraft-biz/misc/xuuid"
+	"github.com/hexcraft-biz/xtime"
+	"github.com/hexcraft-biz/xuuid"
 	"github.com/jmoiron/sqlx"
 )
 

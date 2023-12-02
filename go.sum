@@ -3,10 +3,16 @@ github.com/go-sql-driver/mysql v1.7.0 h1:ueSltNNllEqE3qcWBTD0iQd3IpL/6U+mJxLkazJ
 github.com/go-sql-driver/mysql v1.7.0/go.mod h1:OXbVy3sEdcQ2Doequ6Z5BW6fXNQTmx+9S1MCJN5yJMI=
 github.com/google/uuid v1.3.0 h1:t6JiXgmwXMjEs8VusXIJk2BXHsn+wx8BZdTaoZ5fu7I=
 github.com/google/uuid v1.3.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
+github.com/google/uuid v1.4.0 h1:MtMxsa51/r9yyhkyLsVeVt0B+BGQZzpQiTQ4eHZ8bc4=
+github.com/google/uuid v1.4.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/hexcraft-biz/misc v0.1.25 h1:s8EViQBfdMZmSJN2lbSgHDZWWeEMFCzQm3R8r/DdAtg=
 github.com/hexcraft-biz/misc v0.1.25/go.mod h1:ZpskgUC3pdFII0MF38oiz5i5EUU1m2tUlfPZekKb+mA=
 github.com/hexcraft-biz/misc v0.1.26 h1:kGF2IVqxRcc6FPtZMLPxX1E1NX3iwPq59pKBBE9YTnw=
 github.com/hexcraft-biz/misc v0.1.26/go.mod h1:ZpskgUC3pdFII0MF38oiz5i5EUU1m2tUlfPZekKb+mA=
+github.com/hexcraft-biz/xtime v0.0.1 h1:z/j7Wsgw0J17w12p3DuhxMmIgDXu+kGlch25JhcYimI=
+github.com/hexcraft-biz/xtime v0.0.1/go.mod h1:sfoKKcRT7bgGBkKBMK3guIXkjwzXg52xmhswNa8mak8=
+github.com/hexcraft-biz/xuuid v0.0.1 h1:CibTkJRBPMfEJLsXlvkq0AjcYRVVo+T4WNYCLWyAdUc=
+github.com/hexcraft-biz/xuuid v0.0.1/go.mod h1:+ES5k8l5kZBXU/B49F4ELYpq1uH3ypZm4Tv/JD7pw0s=
 github.com/jmoiron/sqlx v1.3.5 h1:vFFPA71p1o5gAeqtEAwLU4dnX2napprKtHr7PYIcN3g=
 github.com/jmoiron/sqlx v1.3.5/go.mod h1:nRVWtLre0KfCLJvgxzCsLVMogSvQ1zNJtpYr2Ccp0mQ=
 github.com/lib/pq v1.2.0 h1:LXpIM/LZ5xGFhOpXAQUIMM1HdyqzVYM13zNdjCEEcA0=

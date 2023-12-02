@@ -3,13 +3,14 @@ package model
 import (
 	"encoding/json"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
-	"github.com/google/uuid"
-	"github.com/hexcraft-biz/misc/xuuid"
-	"github.com/jmoiron/sqlx"
 	"reflect"
 	"strings"
 	"testing"
+
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/google/uuid"
+	"github.com/hexcraft-biz/xuuid"
+	"github.com/jmoiron/sqlx"
 )
 
 func TInsert(assignments interface{}) string {
@@ -166,9 +167,9 @@ type QPTest struct {
 //	fmt.Println("[Delete]:", TDelete(r))
 //}
 
-//================================================================
+// ================================================================
 //
-//================================================================
+// ================================================================
 type ERewardTypes struct {
 	*Engine
 }
